@@ -6,24 +6,25 @@ Repository: [github.com/umarjamilpc/LD2410-COMPANION-APP](https://github.com/uma
 
 ## Quick Start
 
-### Option A — Docker Compose (build locally)
-
-```bash
-docker compose up --build
-```
-
-### Option B — Pre-built image (amd64 / arm64)
-
 ```bash
 docker compose pull
-docker compose up
+docker compose up -d
 ```
 
-Image: `ghcr.io/umarjamilpc/ld2410-companion-app:latest`
+Image: `ghcr.io/umarjamilpc/ld2410-companion-app:latest` (amd64 + arm64 via GitHub Actions)
 
 Open **http://localhost:8080**
 
-No `.env` files. Configure Home Assistant URL and long-lived access token in the web UI. Settings persist in `./data/store.json` across restarts.
+No `.env` files. Configure Home Assistant URL and long-lived access token in the web UI. Settings persist in your mounted `data/` folder across restarts.
+
+### Unraid / custom data path
+
+Edit the volume in `docker-compose.yml` to your appdata path, for example:
+
+```yaml
+volumes:
+  - /mnt/user/appdata/LD2410-COMPANION-APP/data:/app/data
+```
 
 ## Features
 
@@ -49,7 +50,7 @@ ESPHome LD2410 gate energy sensors (`g0 move energy`, `g0 still energy`, etc.) o
 
 ## CI / Docker builds
 
-GitHub Actions builds multi-architecture images on every push to `main`:
+The `Dockerfile` is used only by GitHub Actions — you do not need to build locally. On every push to `main`, CI builds and publishes:
 
 - `linux/amd64` (x64)
 - `linux/arm64` (ARM64 / Raspberry Pi, Apple Silicon)
