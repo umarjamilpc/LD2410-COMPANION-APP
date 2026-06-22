@@ -8,7 +8,6 @@ const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 const DEFAULT_STORE = {
   ha_url: '',
   token: '',
-  selected_sensor: '',
   calibrations: [],
   last_connection: {
     at: null,
@@ -41,9 +40,10 @@ function readStore() {
   try {
     const raw = fs.readFileSync(STORE_PATH, 'utf8');
     const parsed = JSON.parse(raw);
+    const { selected_sensor: _removed, ...rest } = parsed;
     return {
       ...DEFAULT_STORE,
-      ...parsed,
+      ...rest,
       last_connection: { ...DEFAULT_STORE.last_connection, ...(parsed.last_connection || {}) },
       preferences: { ...DEFAULT_STORE.preferences, ...(parsed.preferences || {}) },
     };
@@ -55,12 +55,15 @@ function readStore() {
 
 function writeStore(data) {
   ensureDirs();
-  fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), 'utf8');
+  const { selected_sensor: _removed, ...safe } = data;
+  fs.writeFileSync(STORE_PATH, JSON.stringify(safe, null, 2), 'utf8');
 }
 
 function updateStore(partial) {
   const store = readStore();
-  const updated = { ...store, ...partial };
+  const { selected_sensor: _removed, ...safePartial } = partial;
+  const updated = { ...store, ...safePartial };
+  delete updated.selected_sensor;
   writeStore(updated);
   return updated;
 }

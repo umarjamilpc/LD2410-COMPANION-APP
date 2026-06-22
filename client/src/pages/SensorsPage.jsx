@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useSensor } from '../SensorContext';
 
 export default function SensorsPage() {
+  const { selectedSensor, setSelectedSensor } = useSensor();
   const [sensors, setSensors] = useState([]);
-  const [selected, setSelected] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [related, setRelated] = useState([]);
@@ -14,14 +15,20 @@ export default function SensorsPage() {
     loadSensors();
   }, []);
 
+  useEffect(() => {
+    if (selectedSensor) loadRelated(selectedSensor);
+    else {
+      setRelated([]);
+      setBundle(null);
+    }
+  }, [selectedSensor]);
+
   async function loadSensors() {
     setLoading(true);
     setError(null);
     try {
       const data = await api.getSensors();
       setSensors(data.sensors || []);
-      setSelected(data.selected || '');
-      if (data.selected) loadRelated();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -29,11 +36,11 @@ export default function SensorsPage() {
     }
   }
 
-  async function loadRelated() {
+  async function loadRelated(sensor) {
     try {
       const [rel, bndl] = await Promise.all([
-        api.getRelatedEntities(),
-        api.getLd2410Bundle(),
+        api.getRelatedEntities(sensor),
+        api.getLd2410Bundle(sensor),
       ]);
       setRelated(rel.entities || []);
       setBundle(bndl.bundle);
@@ -43,51 +50,46 @@ export default function SensorsPage() {
     }
   }
 
-  async function handleSelect(entity_id) {
-    try {
-      await api.selectSensor(entity_id);
-      setSelected(entity_id);
-      await loadRelated();
-    } catch (err) {
-      setError(err.message);
-    }
+  function handleSelect(entity_id) {
+    setSelectedSensor(entity_id);
   }
 
   return (
     <div>
-      <h1 className="page-title">Sensor Discovery</h1>
+      <h1 className="page-title">Sensors</h1>
       <p className="page-subtitle">
-        ESPHome LD2410 radar sensors only (devices with Radar Engineering Mode switch).
+        Choose an ESPHome LD2410 radar for this session. The selection is not saved to disk — pick
+        again after a refresh or new visit.
       </p>
 
       {error && <div className="alert alert-error">{error}</div>}
 
       <div className="form-row" style={{ marginBottom: '1rem' }}>
         <button className="btn btn-secondary" onClick={loadSensors} disabled={loading}>
-          {loading ? 'Loading…' : 'Refresh'}
+          {loading ? 'Loading…' : 'Refresh list'}
         </button>
-        {selected && (
+        {selectedSensor && (
           <Link to="/calibration" className="btn" style={{ display: 'inline-block', textDecoration: 'none' }}>
-            Start Calibration →
+            Open calibration →
           </Link>
         )}
       </div>
 
       <div className="card">
-        <h2>Available Sensors ({sensors.length})</h2>
+        <h2>Available LD2410 devices ({sensors.length})</h2>
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Fetching entities from Home Assistant…</p>
         ) : sensors.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>
-            No ESPHome LD2410 sensors found. Ensure your device exposes a Radar Engineering Mode switch
-            and that Home Assistant is configured on the Setup page.
+            No ESPHome LD2410 sensors found. Your device must expose a Radar Engineering Mode switch.
+            Configure Home Assistant on the setup page first.
           </p>
         ) : (
           <div className="sensor-list">
             {sensors.map((s) => (
               <div
                 key={s.entity_id}
-                className={`sensor-item ${selected === s.entity_id ? 'selected' : ''}`}
+                className={`sensor-item ${selectedSensor === s.entity_id ? 'selected' : ''}`}
                 onClick={() => handleSelect(s.entity_id)}
                 role="button"
                 tabIndex={0}
@@ -112,9 +114,9 @@ export default function SensorsPage() {
         )}
       </div>
 
-      {selected && bundle && (
+      {selectedSensor && bundle && (
         <div className="card">
-          <h2>LD2410 Device</h2>
+          <h2>Device overview</h2>
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
             <span className={`live-badge ${bundle.engineering_mode_on ? 'motion' : 'still'}`}>
               Engineering mode: {bundle.engineering_mode_on ? 'ON' : 'OFF'}
@@ -135,11 +137,11 @@ export default function SensorsPage() {
         </div>
       )}
 
-      {selected && related.length > 0 && (
+      {selectedSensor && related.length > 0 && (
         <div className="card">
-          <h2>Related LD2410 Number Entities ({related.length})</h2>
+          <h2>Threshold entities ({related.length})</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-            These entities will be updated when you push calibration to Home Assistant.
+            These Home Assistant number entities are updated when you apply calibrated thresholds.
           </p>
           <div className="sensor-list">
             {related.map((e) => (

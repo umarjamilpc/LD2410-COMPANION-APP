@@ -55,7 +55,4 @@ server.listen(PORT, '0.0.0.0', () => {
   if (store.token) {
     console.log('Saved access token: present');
   }
-  if (store.selected_sensor) {
-    console.log(`Selected sensor: ${store.selected_sensor}`);
-  }
 });

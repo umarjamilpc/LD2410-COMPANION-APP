@@ -60,7 +60,6 @@ router.get('/config', (req, res) => {
     ha_url: store.ha_url,
     token_set: Boolean(store.token),
     token_preview: maskToken(store.token),
-    selected_sensor: store.selected_sensor,
     last_connection: store.last_connection || null,
     preferences: store.preferences || {},
   });
@@ -76,7 +75,6 @@ router.post('/config', (req, res) => {
     ha_url: store.ha_url,
     token_set: Boolean(store.token),
     token_preview: maskToken(store.token),
-    selected_sensor: store.selected_sensor,
     last_connection: store.last_connection || null,
     preferences: store.preferences || {},
   });
@@ -110,7 +108,6 @@ router.get('/connection/status', async (req, res) => {
       connected: true,
       ...result,
       last_connection,
-      selected_sensor: store.selected_sensor,
       ha_url: store.ha_url,
     });
   } catch (err) {
@@ -124,7 +121,6 @@ router.get('/connection/status', async (req, res) => {
       connected: false,
       error: err.message,
       last_connection,
-      selected_sensor: store.selected_sensor,
       ha_url: store.ha_url,
     });
   }
@@ -156,27 +152,17 @@ router.get('/sensors', async (req, res) => {
   try {
     const store = storage.readStore();
     const sensors = await ha.fetchPresenceSensors(store);
-    res.json({ sensors, selected: store.selected_sensor });
+    res.json({ sensors });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/sensors/select', (req, res) => {
-  const { entity_id } = req.body;
-  if (!entity_id) return res.status(400).json({ error: 'entity_id is required' });
-  const store = storage.updateStore({ selected_sensor: entity_id });
-  res.json({
-    selected_sensor: store.selected_sensor,
-    message: 'Sensor selection saved',
-  });
-});
-
 router.get('/sensors/ld2410-bundle', async (req, res) => {
   try {
     const store = storage.readStore();
-    const sensor = req.query.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.query.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor query parameter is required' });
 
     const allStates = await ha.fetchAllStates(store);
     const registryMaps = await loadRegistryMaps(store);
@@ -190,8 +176,8 @@ router.get('/sensors/ld2410-bundle', async (req, res) => {
 router.post('/sensors/engineering-mode', async (req, res) => {
   try {
     const store = storage.readStore();
-    const sensor = req.body.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.body.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor is required' });
 
     const enable = req.body.enable !== false;
     const allStates = await ha.fetchAllStates(store);
@@ -210,13 +196,14 @@ router.post('/sensors/engineering-mode', async (req, res) => {
 router.get('/sensors/related-entities', async (req, res) => {
   try {
     const store = storage.readStore();
-    if (!store.selected_sensor) {
-      return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.query.sensor;
+    if (!sensor) {
+      return res.status(400).json({ error: 'sensor query parameter is required' });
     }
     const allStates = await ha.fetchAllStates(store);
-    const numbers = ha.findLd2410NumberEntities(allStates, store.selected_sensor);
+    const numbers = ha.findLd2410NumberEntities(allStates, sensor);
     res.json({
-      sensor: store.selected_sensor,
+      sensor,
       entities: numbers.map((n) => ({
         entity_id: n.entity_id,
         friendly_name: n.attributes?.friendly_name,
@@ -234,8 +221,9 @@ router.get('/sensors/related-entities', async (req, res) => {
 router.post('/calibration/start', async (req, res) => {
   try {
     const store = storage.readStore();
-    if (!store.selected_sensor) {
-      return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.body.sensor;
+    if (!sensor) {
+      return res.status(400).json({ error: 'sensor is required' });
     }
     if (!store.ha_url || !store.token) {
       return res.status(400).json({ error: 'Home Assistant not configured' });
@@ -257,7 +245,7 @@ router.post('/calibration/start', async (req, res) => {
 
     const allStates = await ha.fetchAllStates(store);
     const registryMaps = await loadRegistryMaps(store);
-    const bundle = discoverLd2410Bundle(allStates, store.selected_sensor, registryMaps);
+    const bundle = discoverLd2410Bundle(allStates, sensor, registryMaps);
 
     let engineeringModeMeta = null;
     if (autoEngineeringMode && bundle.engineering_mode_switch) {
@@ -267,12 +255,12 @@ router.post('/calibration/start', async (req, res) => {
       });
       // Refresh bundle after enabling engineering mode
       const refreshed = await ha.fetchAllStates(store);
-      Object.assign(bundle, discoverLd2410Bundle(refreshed, store.selected_sensor, registryMaps));
+      Object.assign(bundle, discoverLd2410Bundle(refreshed, sensor, registryMaps));
     }
 
     const wss = req.app.get('wss');
     const session = await calibration.startSession(
-      store.selected_sensor,
+      sensor,
       duration,
       {
         thresholdBufferPct,
@@ -328,9 +316,9 @@ router.post('/calibration/apply', async (req, res) => {
       return res.status(400).json({ error: 'No calibration profile to apply' });
     }
 
-    const sensor = req.body.sensor || store.selected_sensor || session?.sensorEntityId;
+    const sensor = req.body.sensor || session?.sensorEntityId;
     if (!sensor) {
-      return res.status(400).json({ error: 'No sensor specified' });
+      return res.status(400).json({ error: 'sensor is required' });
     }
 
     const result = await ha.applyCalibration(store, sensor, profile);
@@ -374,7 +362,10 @@ router.post('/backups', (req, res) => {
   }
 
   const timestamp = new Date().toISOString();
-  const sensor = req.body.sensor || store.selected_sensor;
+  const sensor = req.body.sensor;
+  if (!sensor) {
+    return res.status(400).json({ error: 'sensor is required' });
+  }
   const backup = {
     id: uuidv4(),
     sensor,
@@ -401,8 +392,8 @@ router.post('/backups/:id/restore', async (req, res) => {
     if (!backup) return res.status(404).json({ error: 'Backup not found' });
 
     const store = storage.readStore();
-    const sensor = req.body.sensor || backup.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor specified' });
+    const sensor = req.body.sensor || backup.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor is required' });
 
     const result = await ha.applyCalibration(store, sensor, backup);
     res.json({ success: true, backup, ...result });
@@ -414,8 +405,8 @@ router.post('/backups/:id/restore', async (req, res) => {
 router.get('/sensors/current-calibration', async (req, res) => {
   try {
     const store = storage.readStore();
-    const sensor = req.query.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.query.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor query parameter is required' });
 
     const profile = await ha.fetchCurrentCalibration(store, sensor);
     if (!Object.keys(profile.gates).length && !Object.keys(profile.zones).length) {
@@ -432,8 +423,8 @@ router.get('/sensors/current-calibration', async (req, res) => {
 router.get('/sensors/dashboard', async (req, res) => {
   try {
     const store = storage.readStore();
-    const sensor = req.query.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.query.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor query parameter is required' });
 
     const registryMaps = await loadRegistryMaps(store);
     const dashboard = await ha.fetchSensorDashboard(store, sensor, registryMaps);
@@ -446,8 +437,8 @@ router.get('/sensors/dashboard', async (req, res) => {
 router.post('/backups/from-current', async (req, res) => {
   try {
     const store = storage.readStore();
-    const sensor = req.body.sensor || store.selected_sensor;
-    if (!sensor) return res.status(400).json({ error: 'No sensor selected' });
+    const sensor = req.body.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor is required' });
 
     const profile = await ha.fetchCurrentCalibration(store, sensor);
     if (!Object.keys(profile.gates).length && !Object.keys(profile.zones).length) {
@@ -497,7 +488,7 @@ router.post('/backups/import', (req, res) => {
     }
 
     const timestamp = data.timestamp || new Date().toISOString();
-    const sensor = data.sensor || store.selected_sensor || '';
+    const sensor = data.sensor || '';
     const backup = {
       id: uuidv4(),
       sensor,

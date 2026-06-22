@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '../api';
-
+import { useSensor } from '../SensorContext';
+import SensorPicker from '../components/SensorPicker';
 const GATE_ORDER = Array.from({ length: 9 }, (_, i) => `g${i}`);
 
 export default function DashboardPage() {
-  const [data, setData] = useState(null);
-  const [sensor, setSensor] = useState('');
-  const [loading, setLoading] = useState(true);
+  const { selectedSensor, setSelectedSensor } = useSensor();
+  const [data, setData] = useState(null);  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const dash = await api.getDashboard(sensor || undefined);
+      const dash = await api.getDashboard(selectedSensor);
       setData(dash);
       setError(null);
     } catch (err) {
@@ -21,15 +20,10 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [sensor]);
+  }, [selectedSensor]);
 
   useEffect(() => {
-    api.getConfig().then((c) => setSensor(c.selected_sensor || ''));
-  }, []);
-
-  useEffect(() => {
-    if (!sensor) {
-      setLoading(false);
+    if (!selectedSensor) {      setLoading(false);
       return;
     }
     setLoading(true);
@@ -37,7 +31,7 @@ export default function DashboardPage() {
     if (!autoRefresh) return undefined;
     const id = setInterval(refresh, 2000);
     return () => clearInterval(id);
-  }, [sensor, autoRefresh, refresh]);
+  }, [selectedSensor, autoRefresh, refresh]);
 
   const sample = data?.sample;
   const grouped = data?.grouped || {};
@@ -45,22 +39,27 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="page-title">Sensor Dashboard</h1>
+      <h1 className="page-title">Live Monitor</h1>
       <p className="page-subtitle">
-        Live view of all LD2410 sensor data from Home Assistant.
+        Real-time LD2410 gate energy, presence, and threshold values from Home Assistant.
       </p>
 
-      {!sensor && (
+      <div className="card">
+        <h2>Sensor</h2>
+        <SensorPicker value={selectedSensor} onChange={setSelectedSensor} />
+      </div>
+
+      {!selectedSensor && (
         <div className="alert alert-error">
-          No sensor selected. <Link to="/sensors">Select a sensor</Link> first.
+          Choose a sensor to view live data.
         </div>
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {sensor && (
+      {selectedSensor && (
         <div className="alert alert-info">
-          Monitoring: <code style={{ fontFamily: 'var(--mono)' }}>{sensor}</code>
+          Monitoring: <code style={{ fontFamily: 'var(--mono)' }}>{selectedSensor}</code>
           {data?.updated_at && (
             <span style={{ marginLeft: '1rem', opacity: 0.8 }}>
               Updated {new Date(data.updated_at).toLocaleTimeString()}
@@ -70,7 +69,7 @@ export default function DashboardPage() {
       )}
 
       <div className="form-row" style={{ marginBottom: '1rem' }}>
-        <button className="btn btn-secondary" onClick={refresh} disabled={loading || !sensor}>
+        <button className="btn btn-secondary" onClick={refresh} disabled={loading || !selectedSensor}>
           {loading ? 'Loading…' : 'Refresh now'}
         </button>
         <label className="toggle-row" style={{ margin: 0 }}>

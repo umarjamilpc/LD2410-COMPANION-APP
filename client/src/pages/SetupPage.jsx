@@ -61,10 +61,11 @@ export default function SetupPage() {
 
   return (
     <div>
-      <h1 className="page-title">Home Assistant Setup</h1>
+      <h1 className="page-title">Home Assistant</h1>
       <p className="page-subtitle">
-        Connection details are saved locally in <code style={{ fontFamily: 'var(--mono)' }}>data/store.json</code> and
-        restored automatically after app or Docker restarts.
+        Connect to Home Assistant. URL and token are saved locally in{' '}
+        <code style={{ fontFamily: 'var(--mono)' }}>data/store.json</code> and restored after restarts.
+        Sensor choice is session-only and is not stored here.
       </p>
 
       {message && (
@@ -75,7 +76,7 @@ export default function SetupPage() {
 
       {config?.ha_url && config?.token_set && (
         <div className={`alert alert-${connectionStatus?.connected ? 'success' : 'info'}`}>
-          <strong>Remembered connection:</strong> {config.ha_url}
+          <strong>Saved connection:</strong> {config.ha_url}
           {connectionStatus?.connected && connectionStatus.location_name && (
             <> · {connectionStatus.location_name}</>
           )}
@@ -128,19 +129,14 @@ export default function SetupPage() {
         </form>
       </div>
 
-      {config?.selected_sensor && (
-        <div className="alert alert-info">
-          Remembered sensor: <code style={{ fontFamily: 'var(--mono)' }}>{config.selected_sensor}</code>
-        </div>
-      )}
-
       <div className="card">
-        <h2>Getting Started</h2>
+        <h2>Quick start</h2>
         <ol style={{ paddingLeft: '1.25rem', color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.8 }}>
           <li>Create a long-lived access token in Home Assistant → Profile → Security</li>
-          <li>Enter your HA URL and token above, then save — they persist across restarts</li>
-          <li>Go to <strong>Sensors</strong> to discover LD2410 / presence entities</li>
-          <li>Run a <strong>Calibration</strong> session and apply results</li>
+          <li>Enter your HA URL and token above, then save</li>
+          <li>Pick a sensor on <strong>Sensors</strong> or on the Calibration / Live Monitor pages</li>
+          <li>Run <strong>Calibration</strong> with an empty room, then apply thresholds on <strong>Thresholds</strong></li>
+          <li>Use <strong>Backups</strong> to export or restore profiles; customize the UI under <strong>Themes</strong></li>
         </ol>
       </div>
     </div>

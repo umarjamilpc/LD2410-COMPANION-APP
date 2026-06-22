@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useSensor } from '../SensorContext';
 
 const GATE_ORDER = Array.from({ length: 9 }, (_, i) => `g${i}`);
 
 export default function ResultsPage() {
+  const { selectedSensor: sessionSensor } = useSensor();
   const [result, setResult] = useState(null);
   const [sensor, setSensor] = useState('');
   const [applying, setApplying] = useState(false);
@@ -31,16 +33,16 @@ export default function ResultsPage() {
     } catch {
       /* no result */
     }
-    const cfg = await api.getConfig().catch(() => ({}));
-    if (!sensor && cfg.selected_sensor) setSensor(cfg.selected_sensor);
   }
+
+  const activeSensor = sensor || sessionSensor;
 
   async function handleApply() {
     if (!result) return;
     setApplying(true);
     setMessage(null);
     try {
-      const data = await api.applyCalibration(result, sensor);
+      const data = await api.applyCalibration(result, activeSensor);
       setApplyResult(data);
       setMessage({
         type: 'success',
@@ -57,7 +59,7 @@ export default function ResultsPage() {
     if (!result) return;
     setBackingUp(true);
     try {
-      await api.createBackup(result, undefined, sensor);
+      await api.createBackup(result, undefined, activeSensor);
       setMessage({ type: 'success', text: 'Backup saved successfully.' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
@@ -69,14 +71,14 @@ export default function ResultsPage() {
   if (!result) {
     return (
       <div>
-        <h1 className="page-title">Calibration Results</h1>
-        <p className="page-subtitle">No calibration results yet.</p>
+        <h1 className="page-title">Calibrated Thresholds</h1>
+        <p className="page-subtitle">No calibration results in this session yet.</p>
         <div className="card">
           <p style={{ color: 'var(--text-muted)' }}>
-            Run a calibration session first, then return here to review and apply gate thresholds.
+            Run an empty-room calibration, then return here to review and apply thresholds.
           </p>
           <Link to="/calibration" className="btn" style={{ display: 'inline-block', marginTop: '1rem', textDecoration: 'none' }}>
-            Go to Calibration
+            Start calibration
           </Link>
         </div>
       </div>
@@ -88,10 +90,10 @@ export default function ResultsPage() {
 
   return (
     <div>
-      <h1 className="page-title">Calibration Results</h1>
+      <h1 className="page-title">Calibrated Thresholds</h1>
       <p className="page-subtitle">
-        Computed gate thresholds and zone cutoffs (0 = most sensitive, 100 = off).
-        Peak sample plus your configured buffer. Review before pushing to Home Assistant.
+        Review gate thresholds and zone distances from your empty-room session. Scale: 0 = most
+        sensitive, 100 = off. Peak sample plus your buffer. Apply to Home Assistant when ready.
       </p>
 
       {message && (

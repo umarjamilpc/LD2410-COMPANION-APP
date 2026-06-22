@@ -1,5 +1,6 @@
 import { NavLink, Routes, Route } from 'react-router-dom';
 import { useAppConfig } from './AppConfigContext';
+import { useSensor } from './SensorContext';
 import SetupPage from './pages/SetupPage';
 import SensorsPage from './pages/SensorsPage';
 import DashboardPage from './pages/DashboardPage';
@@ -9,17 +10,18 @@ import BackupPage from './pages/BackupPage';
 import ThemesPage from './pages/ThemesPage';
 
 const NAV = [
-  { to: '/', label: 'Setup', end: true },
+  { to: '/', label: 'Home Assistant', end: true },
   { to: '/sensors', label: 'Sensors' },
-  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/dashboard', label: 'Live Monitor' },
   { to: '/calibration', label: 'Calibration' },
-  { to: '/results', label: 'Results' },
-  { to: '/backup', label: 'Backup / Restore' },
+  { to: '/results', label: 'Thresholds' },
+  { to: '/backup', label: 'Backups' },
   { to: '/themes', label: 'Themes' },
 ];
 
 export default function App() {
   const { config, connectionStatus } = useAppConfig();
+  const { selectedSensor } = useSensor();
 
   const connected = connectionStatus?.connected;
   const configured = config?.ha_url && config?.token_set;
@@ -27,7 +29,7 @@ export default function App() {
   return (
     <div className="app-layout">
       <aside className="sidebar">
-        <h1>LD2410 Calibrator</h1>
+        <h1>LD2410 Companion</h1>
 
         <div className="sidebar-status">
           {!configured ? (
@@ -39,9 +41,9 @@ export default function App() {
           ) : (
             <span className="sidebar-status-pill offline">HA unreachable</span>
           )}
-          {config?.selected_sensor && (
-            <div className="sidebar-sensor" title={config.selected_sensor}>
-              {config.selected_sensor.split('.')[1] || config.selected_sensor}
+          {selectedSensor && (
+            <div className="sidebar-sensor" title={selectedSensor}>
+              Session: {selectedSensor.split('.')[1] || selectedSensor}
             </div>
           )}
         </div>

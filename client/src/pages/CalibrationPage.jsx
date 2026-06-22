@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { api, connectWebSocket } from '../api';
 import { useAppConfig } from '../AppConfigContext';
+import { useSensor } from '../SensorContext';
+import SensorPicker from '../components/SensorPicker';
 
 const DURATIONS = [60, 120, 180, 240, 300, 360, 420, 480, 540, 600];
 
@@ -21,6 +23,7 @@ function gateChartValue(gate) {
 
 export default function CalibrationPage() {
   const { config, savePreferences } = useAppConfig();
+  const { selectedSensor, setSelectedSensor } = useSensor();
   const [duration, setDuration] = useState(60);
   const [thresholdBufferPct, setThresholdBufferPct] = useState(5);
   const [autoEngineeringMode, setAutoEngineeringMode] = useState(true);
@@ -31,7 +34,6 @@ export default function CalibrationPage() {
   const [chartData, setChartData] = useState([]);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
-  const [selectedSensor, setSelectedSensor] = useState('');
   const wsRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -68,8 +70,8 @@ export default function CalibrationPage() {
   }, []);
 
   useEffect(() => {
-    setSelectedSensor(config?.selected_sensor || '');
-    if (config?.selected_sensor) loadBundle(config.selected_sensor);
+    if (selectedSensor) loadBundle(selectedSensor);
+    else setBundle(null);
     refreshStatus();
 
     const ws = connectWebSocket((data) => {
@@ -123,7 +125,7 @@ export default function CalibrationPage() {
       clearInterval(poll);
       ws.close();
     };
-  }, [refreshStatus, config?.selected_sensor, loadBundle]);
+  }, [refreshStatus, selectedSensor, loadBundle]);
 
   async function handleToggleEngineering(enable) {
     setEngToggling(true);
@@ -147,6 +149,7 @@ export default function CalibrationPage() {
     sessionStorage.removeItem('calibrationResult');
     try {
       const s = await api.startCalibration(duration, {
+        sensor: selectedSensor,
         thresholdBufferPct,
         autoEngineeringMode,
         turnOffEngineeringAfter,
@@ -187,29 +190,31 @@ export default function CalibrationPage() {
 
   return (
     <div>
-      <h1 className="page-title">Calibration Wizard</h1>
+      <h1 className="page-title">Empty Room Calibration</h1>
       <p className="page-subtitle">
-        Run a timed session to capture gate energy and distance data. For best results, use{' '}
-        <strong>Empty room</strong> mode and leave the space unoccupied for the full session.
-        ESPHome LD2410 gate sensors require Radar Engineering Mode to be enabled.
+        Capture gate energy while the room is empty, then compute thresholds from peak samples plus
+        your buffer. Enable Radar Engineering Mode for g0–g8 energy readings.
       </p>
+
+      <div className="card">
+        <h2>Sensor</h2>
+        <SensorPicker
+          value={selectedSensor}
+          onChange={setSelectedSensor}
+          disabled={running}
+        />
+      </div>
 
       {!selectedSensor && (
         <div className="alert alert-error">
-          No sensor selected. <Link to="/sensors">Select a sensor</Link> first.
+          Choose an LD2410 sensor above to start calibration.
         </div>
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
       {info && <div className="alert alert-info">{info}</div>}
 
-      {selectedSensor && (
-        <div className="alert alert-info">
-          Calibrating: <code style={{ fontFamily: 'var(--mono)' }}>{selectedSensor}</code>
-        </div>
-      )}
-
-      {bundle && (
+      {selectedSensor && bundle && (
         <div className="card">
           <h2>Radar Engineering Mode</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>

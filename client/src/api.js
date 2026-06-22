@@ -17,13 +17,16 @@ export const api = {
   getConnectionStatus: () => request('/connection/status'),
   testConnection: () => request('/connection/test', { method: 'POST' }),
   getSensors: () => request('/sensors'),
-  selectSensor: (entity_id) =>
-    request('/sensors/select', { method: 'POST', body: JSON.stringify({ entity_id }) }),
-  getRelatedEntities: () => request('/sensors/related-entities'),
-  getLd2410Bundle: (sensor) =>
-    request(sensor ? `/sensors/ld2410-bundle?sensor=${encodeURIComponent(sensor)}` : '/sensors/ld2410-bundle'),
-  getDashboard: (sensor) =>
-    request(sensor ? `/sensors/dashboard?sensor=${encodeURIComponent(sensor)}` : '/sensors/dashboard'),
+  getRelatedEntities: (sensor) =>
+    request(`/sensors/related-entities?sensor=${encodeURIComponent(sensor)}`),
+  getLd2410Bundle: (sensor) => {
+    if (!sensor) return Promise.reject(new Error('sensor is required'));
+    return request(`/sensors/ld2410-bundle?sensor=${encodeURIComponent(sensor)}`);
+  },
+  getDashboard: (sensor) => {
+    if (!sensor) return Promise.reject(new Error('sensor is required'));
+    return request(`/sensors/dashboard?sensor=${encodeURIComponent(sensor)}`);
+  },
   setEngineeringMode: (enable, sensor) =>
     request('/sensors/engineering-mode', {
       method: 'POST',
@@ -34,6 +37,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         duration,
+        sensor: options.sensor,
         threshold_buffer_pct: options.thresholdBufferPct ?? 5,
         auto_engineering_mode: options.autoEngineeringMode !== false,
         turn_off_engineering_after: options.turnOffEngineeringAfter !== false,
@@ -63,8 +67,10 @@ export const api = {
   importBackup: (data) =>
     request('/backups/import', { method: 'POST', body: JSON.stringify(data) }),
   exportBackupUrl: (id) => `/api/backups/${id}/export`,
-  getCurrentCalibration: (sensor) =>
-    request(sensor ? `/sensors/current-calibration?sensor=${encodeURIComponent(sensor)}` : '/sensors/current-calibration'),
+  getCurrentCalibration: (sensor) => {
+    if (!sensor) return Promise.reject(new Error('sensor is required'));
+    return request(`/sensors/current-calibration?sensor=${encodeURIComponent(sensor)}`);
+  },
   saveCurrentCalibrationBackup: (sensor, name) =>
     request('/backups/from-current', {
       method: 'POST',

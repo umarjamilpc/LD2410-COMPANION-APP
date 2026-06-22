@@ -1,21 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import { useSensor } from '../SensorContext';
+import SensorPicker from '../components/SensorPicker';
 import { formatLocalDateTime, recordDisplayName, buildExportFilename } from '../format';
 
 export default function BackupPage() {
-  const [backups, setBackups] = useState([]);
+  const { selectedSensor, setSelectedSensor } = useSensor();  const [backups, setBackups] = useState([]);
   const [calibrations, setCalibrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
   const [restoring, setRestoring] = useState(null);
   const [importing, setImporting] = useState(false);
   const [exportingCurrent, setExportingCurrent] = useState(false);
-  const [selectedSensor, setSelectedSensor] = useState('');
   const fileInputRef = useRef(null);
-
   useEffect(() => {
     load();
-    api.getConfig().then((c) => setSelectedSensor(c.selected_sensor || ''));
   }, []);
 
   async function load() {
@@ -82,7 +81,7 @@ export default function BackupPage() {
 
   async function handleExportCurrent() {
     if (!selectedSensor) {
-      setMessage({ type: 'error', text: 'Select a sensor on the Sensors page first.' });
+      setMessage({ type: 'error', text: 'Choose a sensor above first.' });
       return;
     }
     setExportingCurrent(true);
@@ -101,7 +100,7 @@ export default function BackupPage() {
 
   async function handleSaveCurrentBackup() {
     if (!selectedSensor) {
-      setMessage({ type: 'error', text: 'Select a sensor on the Sensors page first.' });
+      setMessage({ type: 'error', text: 'Choose a sensor above first.' });
       return;
     }
     setExportingCurrent(true);
@@ -162,10 +161,15 @@ export default function BackupPage() {
 
   return (
     <div>
-      <h1 className="page-title">Backup & Restore</h1>
+      <h1 className="page-title">Backups</h1>
       <p className="page-subtitle">
-        Save, export, import, and restore LD2410 calibration profiles as JSON files.
+        Export, import, and restore LD2410 threshold profiles. Applied calibrations are kept in history.
       </p>
+
+      <div className="card">
+        <h2>Sensor for HA operations</h2>
+        <SensorPicker value={selectedSensor} onChange={setSelectedSensor} />
+      </div>
 
       {message && (
         <div className={`alert alert-${message.type === 'success' ? 'success' : 'error'}`}>
@@ -174,13 +178,13 @@ export default function BackupPage() {
       )}
 
       <div className="card">
-        <h2>Current gates (from Home Assistant)</h2>
+        <h2>Current thresholds from Home Assistant</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
-          Read the live g0–g8 move/still thresholds and zone distances currently set on your LD2410
+          Read live g0–g8 move/still thresholds and zone distances
           {selectedSensor ? (
             <> for <code style={{ fontFamily: 'var(--mono)' }}>{selectedSensor}</code></>
           ) : (
-            ' — select a sensor first'
+            ' — choose a sensor above first'
           )}
           .
         </p>
@@ -266,9 +270,9 @@ export default function BackupPage() {
       </div>
 
       <div className="card">
-        <h2>Calibration History ({calibrations.length})</h2>
+        <h2>Calibration history ({calibrations.length})</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Previously applied calibrations stored in the app database.
+          Threshold profiles previously applied to Home Assistant from this app.
         </p>
         {calibrations.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No history yet.</p>
