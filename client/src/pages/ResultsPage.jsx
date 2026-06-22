@@ -90,7 +90,8 @@ export default function ResultsPage() {
     <div>
       <h1 className="page-title">Calibration Results</h1>
       <p className="page-subtitle">
-        Computed gate thresholds and zone cutoffs. Review before pushing to Home Assistant.
+        Computed gate thresholds and zone cutoffs (0 = most sensitive, 100 = off). Peak sample + 5% buffer.
+        Review before pushing to Home Assistant.
       </p>
 
       {message && (

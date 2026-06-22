@@ -193,8 +193,15 @@ function stats(values) {
   };
 }
 
+const THRESHOLD_BUFFER_PCT = 5;
+
 function clampThreshold(n) {
   return Math.max(1, Math.min(100, Math.ceil(n)));
+}
+
+/** LD2410: 0 = most sensitive, 100 = least sensitive (effectively off). */
+function thresholdFromPeak(peak) {
+  return clampThreshold(peak * (1 + THRESHOLD_BUFFER_PCT / 100));
 }
 
 function suggestMaxThreshold(stillValues, moveValues) {
@@ -207,15 +214,16 @@ function suggestMaxThreshold(stillValues, moveValues) {
 
   if (stillMax != null && moveMax != null) {
     return {
-      still_threshold: clampThreshold(stillMax),
-      move_threshold: clampThreshold(moveMax),
+      still_threshold: thresholdFromPeak(stillMax),
+      move_threshold: thresholdFromPeak(moveMax),
     };
   }
 
   const peak = stillMax ?? moveMax;
+  const th = thresholdFromPeak(peak);
   return {
-    still_threshold: clampThreshold(peak),
-    move_threshold: clampThreshold(peak),
+    still_threshold: th,
+    move_threshold: th,
   };
 }
 

@@ -268,7 +268,7 @@ export default function CalibrationPage() {
           </select>
           <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
             {calibrationMode === 'empty_room'
-              ? 'Leave the room empty for the full session. Samples with presence/motion are excluded. Thresholds use the highest gate energy seen during sampling.'
+              ? 'Leave the room empty for the full session. Samples with presence/motion are excluded. Thresholds use peak sample energy + 5% (0 = most sensitive, 100 = off).'
               : 'Capture still baseline, then move in the room so the app can separate still vs motion gate energies.'}
           </small>
         </div>
