@@ -38,7 +38,8 @@ export const api = {
       body: JSON.stringify({
         duration,
         sensor: options.sensor,
-        threshold_buffer_pct: options.thresholdBufferPct ?? 5,
+        still_threshold_buffer: options.stillThresholdBuffer ?? 5,
+        move_threshold_buffer: options.moveThresholdBuffer ?? 5,
         auto_engineering_mode: options.autoEngineeringMode !== false,
         turn_off_engineering_after: options.turnOffEngineeringAfter !== false,
       }),
@@ -52,6 +53,8 @@ export const api = {
       body: JSON.stringify({ profile, sensor }),
     }),
   getCalibrations: () => request('/calibrations'),
+  deleteCalibration: (id) => request(`/calibrations/${id}`, { method: 'DELETE' }),
+  clearCalibrations: () => request('/calibrations', { method: 'DELETE' }),
   getBackups: () => request('/backups'),
   createBackup: (profile, name, sensor) =>
     request('/backups', {
@@ -67,6 +70,11 @@ export const api = {
   importBackup: (data) =>
     request('/backups/import', { method: 'POST', body: JSON.stringify(data) }),
   exportBackupUrl: (id) => `/api/backups/${id}/export`,
+  applyGateThresholds: (sensor, gates) =>
+    request('/sensors/gate-thresholds', {
+      method: 'POST',
+      body: JSON.stringify({ sensor, gates }),
+    }),
   getGateComparison: (sensor) => {
     if (!sensor) return Promise.reject(new Error('sensor is required'));
     return request(`/sensors/gate-comparison?sensor=${encodeURIComponent(sensor)}`);

@@ -48,21 +48,31 @@ export default function ComparisonPage() {
   const [message, setMessage] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [applying, setApplying] = useState(false);
+  const [engToggling, setEngToggling] = useState(false);
   const draftInitRef = useRef('');
+  const pauseRefreshRef = useRef(false);
 
-  const syncDraftFromHa = useCallback((gates) => {
+  const syncDraftFromHa = useCallback((gates, preferApplied) => {
     const next = emptyDraft();
     for (const g of GATE_ORDER) {
       const row = gates?.[g];
       if (!row) continue;
-      if (row.move_threshold != null) next[g].move_threshold = String(row.move_threshold);
-      if (row.still_threshold != null) next[g].still_threshold = String(row.still_threshold);
+      if (row.move_threshold != null) {
+        next[g].move_threshold = String(
+          preferApplied?.[g]?.move_threshold ?? row.move_threshold
+        );
+      }
+      if (row.still_threshold != null) {
+        next[g].still_threshold = String(
+          preferApplied?.[g]?.still_threshold ?? row.still_threshold
+        );
+      }
     }
     setDraft(next);
   }, []);
 
   const refresh = useCallback(async (initDraft = false) => {
-    if (!selectedSensor) return;
+    if (!selectedSensor || pauseRefreshRef.current) return;
     try {
       const comparison = await api.getGateComparison(selectedSensor);
       setData(comparison);
@@ -113,36 +123,62 @@ export default function ComparisonPage() {
     });
   }
 
+  async function handleToggleEngineering(enable) {
+    if (!selectedSensor) return;
+    setEngToggling(true);
+    setError(null);
+    try {
+      const result = await api.setEngineeringMode(enable, selectedSensor);
+      setMessage({ type: 'success', text: result.message || `Engineering mode ${enable ? 'enabled' : 'disabled'}.` });
+      await refresh(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEngToggling(false);
+    }
+  }
+
   async function handleApply() {
     if (!selectedSensor || !data) return;
     setApplying(true);
     setMessage(null);
+    pauseRefreshRef.current = true;
     try {
       const gates = {};
+      const appliedDraft = {};
       for (const g of GATE_ORDER) {
-        const row = data.gates?.[g];
         const move = draft[g].move_threshold;
         const still = draft[g].still_threshold;
         if (move === '' && still === '') continue;
         gates[g] = {};
-        if (move !== '') gates[g].move_threshold = Number(move);
-        if (still !== '') gates[g].still_threshold = Number(still);
-        if (row?.move_threshold != null && gates[g].move_threshold == null) {
-          gates[g].move_threshold = row.move_threshold;
+        appliedDraft[g] = {};
+        if (move !== '') {
+          gates[g].move_threshold = Number(move);
+          appliedDraft[g].move_threshold = Number(move);
         }
-        if (row?.still_threshold != null && gates[g].still_threshold == null) {
-          gates[g].still_threshold = row.still_threshold;
+        if (still !== '') {
+          gates[g].still_threshold = Number(still);
+          appliedDraft[g].still_threshold = Number(still);
         }
       }
-      const result = await api.applyCalibration({ gates, zones: {} }, selectedSensor);
+
+      const result = await api.applyGateThresholds(selectedSensor, gates);
+      setData({
+        sensor: result.sensor,
+        engineering_mode_on: result.engineering_mode_on,
+        gate_data_available: result.gate_data_available,
+        gates: result.gates,
+        updated_at: result.updated_at,
+      });
+      syncDraftFromHa(result.gates, appliedDraft);
       setMessage({
         type: 'success',
-        text: `Applied ${result.updates?.length || 0} threshold updates to Home Assistant.`,
+        text: `Applied ${result.updates?.length || 0} threshold updates. Synced with Home Assistant.`,
       });
-      await refresh(true);
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
+      pauseRefreshRef.current = false;
       setApplying(false);
     }
   }
@@ -158,11 +194,11 @@ export default function ComparisonPage() {
 
   return (
     <div>
-      <h1 className="page-title">Gate Comparison</h1>
+      <h1 className="page-title">Manual Tweaking</h1>
       <p className="page-subtitle">
-        Compare live gate energy against thresholds set in Home Assistant. Adjust thresholds manually
-        and push changes. Scale: 0 = most sensitive, 100 = off. Energy at or above the threshold
-        highlights as active detection.
+        Compare live gate energy against thresholds in Home Assistant, adjust values, and apply.
+        Scale: 0 = most sensitive, 100 = off. Energy at or above the threshold highlights as
+        active detection.
       </p>
 
       <div className="card">
@@ -181,11 +217,43 @@ export default function ComparisonPage() {
         </div>
       )}
 
+      {selectedSensor && (
+        <div className="card">
+          <h2>Radar Engineering Mode</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+            Gate energy (g0–g8) is only reported when engineering mode is on.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <span className={`live-badge ${data?.engineering_mode_on ? 'motion' : 'still'}`}>
+              <span className={`status-dot ${data?.engineering_mode_on ? 'on' : 'off'}`} />
+              Engineering mode: {data?.engineering_mode_on ? 'ON' : 'OFF'}
+            </span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              Gate data: {data?.gate_data_available ? 'available' : 'not available yet'}
+            </span>
+          </div>
+          <div className="form-row">
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleToggleEngineering(true)}
+              disabled={engToggling || applying || data?.engineering_mode_on}
+            >
+              Enable Engineering Mode
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => handleToggleEngineering(false)}
+              disabled={engToggling || applying || !data?.engineering_mode_on}
+            >
+              Disable Engineering Mode
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectedSensor && data && (
         <div className="alert alert-info">
-          Engineering mode: {data.engineering_mode_on ? 'ON' : 'OFF'}
-          {' · '}
-          Gate data: {data.gate_data_available ? 'available' : 'enable engineering mode for live energy'}
+          Live comparison data
           {data.updated_at && (
             <span style={{ marginLeft: '0.75rem', opacity: 0.85 }}>
               Updated {new Date(data.updated_at).toLocaleTimeString()}
@@ -202,8 +270,8 @@ export default function ComparisonPage() {
           <button className="btn btn-secondary" onClick={() => syncDraftFromHa(gates)} disabled={!data}>
             Reload thresholds from HA
           </button>
-          <button className="btn" onClick={handleApply} disabled={applying || !data}>
-            {applying ? 'Applying…' : 'Apply thresholds to HA'}
+          <button className="btn" onClick={handleApply} disabled={applying || !data || loading}>
+            {applying ? 'Applying & syncing…' : 'Apply thresholds to HA'}
           </button>
           <label className="toggle-row" style={{ margin: 0 }}>
             <input

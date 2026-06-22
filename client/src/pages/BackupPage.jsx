@@ -5,7 +5,8 @@ import SensorPicker from '../components/SensorPicker';
 import { formatLocalDateTime, recordDisplayName, buildExportFilename } from '../format';
 
 export default function BackupPage() {
-  const { selectedSensor, setSelectedSensor } = useSensor();  const [backups, setBackups] = useState([]);
+  const { selectedSensor, setSelectedSensor } = useSensor();
+  const [backups, setBackups] = useState([]);
   const [calibrations, setCalibrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState(null);
@@ -159,6 +160,29 @@ export default function BackupPage() {
     }
   }
 
+  async function handleDeleteHistory(id) {
+    if (!confirm('Delete this calibration history entry?')) return;
+    try {
+      await api.deleteCalibration(id);
+      setCalibrations((prev) => prev.filter((c) => c.id !== id));
+      setMessage({ type: 'success', text: 'History entry deleted.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  }
+
+  async function handleClearHistory() {
+    if (!calibrations.length) return;
+    if (!confirm('Clear all calibration history? This cannot be undone.')) return;
+    try {
+      await api.clearCalibrations();
+      setCalibrations([]);
+      setMessage({ type: 'success', text: 'Calibration history cleared.' });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message });
+    }
+  }
+
   return (
     <div>
       <h1 className="page-title">Backups</h1>
@@ -270,7 +294,14 @@ export default function BackupPage() {
       </div>
 
       <div className="card">
-        <h2>Calibration history ({calibrations.length})</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Calibration history ({calibrations.length})</h2>
+          {calibrations.length > 0 && (
+            <button className="btn btn-danger" onClick={handleClearHistory}>
+              Clear history
+            </button>
+          )}
+        </div>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
           Threshold profiles previously applied to Home Assistant from this app.
         </p>
@@ -293,8 +324,12 @@ export default function BackupPage() {
                   <button
                     className="btn btn-secondary"
                     onClick={() => handleRestoreFromHistory(c)}
+                    disabled={restoring === c.id}
                   >
-                    Re-apply
+                    {restoring === c.id ? 'Applying…' : 'Re-apply'}
+                  </button>
+                  <button className="btn btn-danger" onClick={() => handleDeleteHistory(c.id)}>
+                    Delete
                   </button>
                 </div>
               </div>

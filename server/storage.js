@@ -18,7 +18,8 @@ const DEFAULT_STORE = {
   },
   preferences: {
     calibration_duration: 60,
-    threshold_buffer_pct: 5,
+    still_threshold_buffer: 5,
+    move_threshold_buffer: 5,
     auto_engineering_mode: true,
     turn_off_engineering_after: true,
     theme_color_mode: 'dark',
@@ -45,7 +46,18 @@ function readStore() {
       ...DEFAULT_STORE,
       ...rest,
       last_connection: { ...DEFAULT_STORE.last_connection, ...(parsed.last_connection || {}) },
-      preferences: { ...DEFAULT_STORE.preferences, ...(parsed.preferences || {}) },
+      preferences: {
+        ...DEFAULT_STORE.preferences,
+        ...(parsed.preferences || {}),
+        still_threshold_buffer:
+          parsed.preferences?.still_threshold_buffer
+          ?? parsed.preferences?.threshold_buffer_pct
+          ?? DEFAULT_STORE.preferences.still_threshold_buffer,
+        move_threshold_buffer:
+          parsed.preferences?.move_threshold_buffer
+          ?? parsed.preferences?.threshold_buffer_pct
+          ?? DEFAULT_STORE.preferences.move_threshold_buffer,
+      },
     };
   } catch {
     writeStore(DEFAULT_STORE);
@@ -91,6 +103,20 @@ function addCalibration(calibration) {
   }
   writeStore(store);
   return calibration;
+}
+
+function deleteCalibration(id) {
+  const store = readStore();
+  store.calibrations = (store.calibrations || []).filter((c) => c.id !== id);
+  writeStore(store);
+  return true;
+}
+
+function clearCalibrations() {
+  const store = readStore();
+  store.calibrations = [];
+  writeStore(store);
+  return true;
 }
 
 function saveBackupFile(backup) {
@@ -139,6 +165,8 @@ module.exports = {
   updatePreferences,
   updateLastConnection,
   addCalibration,
+  deleteCalibration,
+  clearCalibrations,
   saveBackupFile,
   listBackupFiles,
   readBackupFile,

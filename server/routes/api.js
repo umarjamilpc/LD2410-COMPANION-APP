@@ -174,75 +174,101 @@ router.get('/sensors/ld2410-bundle', async (req, res) => {
   }
 });
 
+async function buildGateComparison(store, sensor) {
+  const allStates = await ha.fetchAllStates(store);
+  const registryMaps = await loadRegistryMaps(store);
+  const bundle = discoverLd2410Bundle(allStates, sensor, registryMaps);
+  const pollIds = getEntityIdsToPoll(bundle);
+  const statesMap = await ha.fetchEntityStates(store, pollIds);
+  const sample = buildSampleFromEntities(bundle, statesMap);
+
+  const numberEntities = ha.findLd2410NumberEntities(allStates, sensor);
+  const gates = {};
+  for (let i = 0; i <= 8; i += 1) {
+    gates[`g${i}`] = {
+      move_threshold: null,
+      still_threshold: null,
+      move_energy: null,
+      still_energy: null,
+      move_entity_id: null,
+      still_entity_id: null,
+      min: 0,
+      max: 100,
+    };
+  }
+
+  for (const entity of numberEntities) {
+    const classification = ha.classifyNumberEntity(
+      entity.entity_id,
+      entity.attributes?.friendly_name || ''
+    );
+    if (classification.type !== 'move_threshold' && classification.type !== 'still_threshold') {
+      continue;
+    }
+    const gateKey = `g${classification.gate}`;
+    if (!gates[gateKey]) continue;
+    const val = Number(entity.state);
+    const min = entity.attributes?.min ?? 0;
+    const max = entity.attributes?.max ?? 100;
+    gates[gateKey].min = min;
+    gates[gateKey].max = max;
+    if (classification.type === 'move_threshold') {
+      gates[gateKey].move_threshold = Number.isFinite(val) ? val : null;
+      gates[gateKey].move_entity_id = entity.entity_id;
+    } else {
+      gates[gateKey].still_threshold = Number.isFinite(val) ? val : null;
+      gates[gateKey].still_entity_id = entity.entity_id;
+    }
+  }
+
+  for (const [gateKey, energy] of Object.entries(sample.gates || {})) {
+    if (!gates[gateKey]) continue;
+    if (energy.move != null) gates[gateKey].move_energy = energy.move;
+    if (energy.still != null) gates[gateKey].still_energy = energy.still;
+    if (energy.energy != null) {
+      if (gates[gateKey].move_energy == null) gates[gateKey].move_energy = energy.energy;
+      if (gates[gateKey].still_energy == null) gates[gateKey].still_energy = energy.energy;
+    }
+  }
+
+  return {
+    sensor,
+    engineering_mode_on: bundle.engineering_mode_on,
+    gate_data_available: bundle.gate_data_available,
+    gates,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 router.get('/sensors/gate-comparison', async (req, res) => {
   try {
-    const store = storage.readStore();
     const sensor = req.query.sensor;
     if (!sensor) return res.status(400).json({ error: 'sensor query parameter is required' });
+    const store = storage.readStore();
+    res.json(await buildGateComparison(store, sensor));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
-    const allStates = await ha.fetchAllStates(store);
-    const registryMaps = await loadRegistryMaps(store);
-    const bundle = discoverLd2410Bundle(allStates, sensor, registryMaps);
-    const pollIds = getEntityIdsToPoll(bundle);
-    const statesMap = await ha.fetchEntityStates(store, pollIds);
-    const sample = buildSampleFromEntities(bundle, statesMap);
-
-    const numberEntities = ha.findLd2410NumberEntities(allStates, sensor);
-    const gates = {};
-    for (let i = 0; i <= 8; i += 1) {
-      gates[`g${i}`] = {
-        move_threshold: null,
-        still_threshold: null,
-        move_energy: null,
-        still_energy: null,
-        move_entity_id: null,
-        still_entity_id: null,
-        min: 0,
-        max: 100,
-      };
+router.post('/sensors/gate-thresholds', async (req, res) => {
+  try {
+    const store = storage.readStore();
+    const sensor = req.body.sensor;
+    const gates = req.body.gates;
+    if (!sensor) return res.status(400).json({ error: 'sensor is required' });
+    if (!gates || typeof gates !== 'object') {
+      return res.status(400).json({ error: 'gates object is required' });
     }
 
-    for (const entity of numberEntities) {
-      const classification = ha.classifyNumberEntity(
-        entity.entity_id,
-        entity.attributes?.friendly_name || ''
-      );
-      if (classification.type !== 'move_threshold' && classification.type !== 'still_threshold') {
-        continue;
-      }
-      const gateKey = `g${classification.gate}`;
-      if (!gates[gateKey]) continue;
-      const val = Number(entity.state);
-      const min = entity.attributes?.min ?? 0;
-      const max = entity.attributes?.max ?? 100;
-      gates[gateKey].min = min;
-      gates[gateKey].max = max;
-      if (classification.type === 'move_threshold') {
-        gates[gateKey].move_threshold = Number.isFinite(val) ? val : null;
-        gates[gateKey].move_entity_id = entity.entity_id;
-      } else {
-        gates[gateKey].still_threshold = Number.isFinite(val) ? val : null;
-        gates[gateKey].still_entity_id = entity.entity_id;
-      }
-    }
-
-    for (const [gateKey, energy] of Object.entries(sample.gates || {})) {
-      if (!gates[gateKey]) continue;
-      if (energy.move != null) gates[gateKey].move_energy = energy.move;
-      if (energy.still != null) gates[gateKey].still_energy = energy.still;
-      if (energy.energy != null) {
-        if (gates[gateKey].move_energy == null) gates[gateKey].move_energy = energy.energy;
-        if (gates[gateKey].still_energy == null) gates[gateKey].still_energy = energy.energy;
-      }
-    }
-
-    res.json({
+    const result = await ha.applyCalibration(
+      store,
       sensor,
-      engineering_mode_on: bundle.engineering_mode_on,
-      gate_data_available: bundle.gate_data_available,
-      gates,
-      updated_at: new Date().toISOString(),
-    });
+      { gates, zones: {} },
+      { waitForSync: true, syncDelayMs: 1500 }
+    );
+    const comparison = await buildGateComparison(store, sensor);
+    res.json({ success: true, ...result, ...comparison });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -307,15 +333,24 @@ router.post('/calibration/start', async (req, res) => {
     const duration = Number(req.body.duration) || 60;
     const turnOffEngineeringAfter = req.body.turn_off_engineering_after !== false;
     const autoEngineeringMode = req.body.auto_engineering_mode !== false;
-    const thresholdBufferPct = Number(
-      req.body.threshold_buffer_pct ?? store.preferences?.threshold_buffer_pct ?? 5
+    const stillThresholdBuffer = Number(
+      req.body.still_threshold_buffer
+      ?? store.preferences?.still_threshold_buffer
+      ?? store.preferences?.threshold_buffer_pct
+      ?? 5
+    );
+    const moveThresholdBuffer = Number(
+      req.body.move_threshold_buffer
+      ?? store.preferences?.move_threshold_buffer
+      ?? store.preferences?.threshold_buffer_pct
+      ?? 5
     );
 
     if (duration < 60 || duration > 600) {
       return res.status(400).json({ error: 'Duration must be between 60 and 600 seconds (1–10 minutes)' });
     }
-    if (thresholdBufferPct < 0 || thresholdBufferPct > 50) {
-      return res.status(400).json({ error: 'Threshold buffer must be between 0 and 50 percent' });
+    if (stillThresholdBuffer < 0 || stillThresholdBuffer > 50 || moveThresholdBuffer < 0 || moveThresholdBuffer > 50) {
+      return res.status(400).json({ error: 'Threshold buffers must be between 0 and 50' });
     }
 
     const allStates = await ha.fetchAllStates(store);
@@ -338,7 +373,8 @@ router.post('/calibration/start', async (req, res) => {
       sensor,
       duration,
       {
-        thresholdBufferPct,
+        stillThresholdBuffer,
+        moveThresholdBuffer,
         turnOffEngineeringAfter,
         bundle,
         engineeringModeMeta,
@@ -420,6 +456,16 @@ router.post('/calibration/apply', async (req, res) => {
 router.get('/calibrations', (req, res) => {
   const store = storage.readStore();
   res.json({ calibrations: store.calibrations || [] });
+});
+
+router.delete('/calibrations/:id', (req, res) => {
+  storage.deleteCalibration(req.params.id);
+  res.json({ success: true });
+});
+
+router.delete('/calibrations', (req, res) => {
+  storage.clearCalibrations();
+  res.json({ success: true });
 });
 
 router.get('/backups', (req, res) => {

@@ -25,7 +25,8 @@ export default function CalibrationPage() {
   const { config, savePreferences } = useAppConfig();
   const { selectedSensor, setSelectedSensor } = useSensor();
   const [duration, setDuration] = useState(60);
-  const [thresholdBufferPct, setThresholdBufferPct] = useState(5);
+  const [stillThresholdBuffer, setStillThresholdBuffer] = useState(5);
+  const [moveThresholdBuffer, setMoveThresholdBuffer] = useState(5);
   const [autoEngineeringMode, setAutoEngineeringMode] = useState(true);
   const [turnOffEngineeringAfter, setTurnOffEngineeringAfter] = useState(true);
   const [bundle, setBundle] = useState(null);
@@ -41,7 +42,10 @@ export default function CalibrationPage() {
     if (!config?.preferences) return;
     const p = config.preferences;
     if (p.calibration_duration) setDuration(p.calibration_duration);
-    if (p.threshold_buffer_pct != null) setThresholdBufferPct(p.threshold_buffer_pct);
+    if (p.still_threshold_buffer != null) setStillThresholdBuffer(p.still_threshold_buffer);
+    else if (p.threshold_buffer_pct != null) setStillThresholdBuffer(p.threshold_buffer_pct);
+    if (p.move_threshold_buffer != null) setMoveThresholdBuffer(p.move_threshold_buffer);
+    else if (p.threshold_buffer_pct != null) setMoveThresholdBuffer(p.threshold_buffer_pct);
     if (p.auto_engineering_mode != null) setAutoEngineeringMode(p.auto_engineering_mode);
     if (p.turn_off_engineering_after != null) setTurnOffEngineeringAfter(p.turn_off_engineering_after);
   }, [config?.preferences]);
@@ -150,7 +154,8 @@ export default function CalibrationPage() {
     try {
       const s = await api.startCalibration(duration, {
         sensor: selectedSensor,
-        thresholdBufferPct,
+        stillThresholdBuffer,
+        moveThresholdBuffer,
         autoEngineeringMode,
         turnOffEngineeringAfter,
       });
@@ -276,27 +281,50 @@ export default function CalibrationPage() {
               ))}
             </select>
           </div>
-          <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-            <label>Threshold buffer ({thresholdBufferPct}%)</label>
+          <div className="form-group" style={{ flex: 1, minWidth: 180 }}>
+            <label>Still threshold buffer (+{stillThresholdBuffer})</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <input
                 type="range"
                 min={0}
                 max={50}
                 step={1}
-                value={thresholdBufferPct}
+                value={stillThresholdBuffer}
                 onChange={(e) => {
                   const val = Number(e.target.value);
-                  setThresholdBufferPct(val);
-                  persistPreferences({ threshold_buffer_pct: val });
+                  setStillThresholdBuffer(val);
+                  persistPreferences({ still_threshold_buffer: val });
                 }}
                 disabled={running}
                 style={{ flex: 1 }}
               />
-              <span className="range-value">{thresholdBufferPct}%</span>
+              <span className="range-value">+{stillThresholdBuffer}</span>
             </div>
             <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-              Added above peak gate energy per sample (higher = less sensitive).
+              Points added above peak still energy (e.g. 5 → peak 40 becomes 45).
+            </small>
+          </div>
+          <div className="form-group" style={{ flex: 1, minWidth: 180 }}>
+            <label>Move threshold buffer (+{moveThresholdBuffer})</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={moveThresholdBuffer}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setMoveThresholdBuffer(val);
+                  persistPreferences({ move_threshold_buffer: val });
+                }}
+                disabled={running}
+                style={{ flex: 1 }}
+              />
+              <span className="range-value">+{moveThresholdBuffer}</span>
+            </div>
+            <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Points added above peak move energy (higher = less sensitive).
             </small>
           </div>
         </div>

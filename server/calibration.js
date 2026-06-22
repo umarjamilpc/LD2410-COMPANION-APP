@@ -193,19 +193,20 @@ function stats(values) {
   };
 }
 
-const DEFAULT_THRESHOLD_BUFFER_PCT = 5;
+const DEFAULT_STILL_THRESHOLD_BUFFER = 5;
+const DEFAULT_MOVE_THRESHOLD_BUFFER = 5;
 
 function clampThreshold(n) {
   return Math.max(1, Math.min(100, Math.ceil(n)));
 }
 
 /** LD2410: 0 = most sensitive, 100 = least sensitive (effectively off). */
-function thresholdFromPeak(peak, bufferPct = 5) {
-  const pct = Number.isFinite(bufferPct) ? bufferPct : 5;
-  return clampThreshold(peak * (1 + pct / 100));
+function thresholdFromPeak(peak, buffer = 5) {
+  const add = Number.isFinite(buffer) ? buffer : 5;
+  return clampThreshold(peak + add);
 }
 
-function suggestMaxThreshold(stillValues, moveValues, bufferPct = 5) {
+function suggestMaxThreshold(stillValues, moveValues, stillBuffer = 5, moveBuffer = 5) {
   if (!stillValues.length && !moveValues.length) {
     return { still_threshold: 50, move_threshold: 55 };
   }
@@ -215,16 +216,17 @@ function suggestMaxThreshold(stillValues, moveValues, bufferPct = 5) {
 
   if (stillMax != null && moveMax != null) {
     return {
-      still_threshold: thresholdFromPeak(stillMax, bufferPct),
-      move_threshold: thresholdFromPeak(moveMax, bufferPct),
+      still_threshold: thresholdFromPeak(stillMax, stillBuffer),
+      move_threshold: thresholdFromPeak(moveMax, moveBuffer),
     };
   }
 
   const peak = stillMax ?? moveMax;
-  const th = thresholdFromPeak(peak, bufferPct);
+  const stillTh = thresholdFromPeak(peak, stillMax != null ? stillBuffer : moveBuffer);
+  const moveTh = thresholdFromPeak(peak, moveMax != null ? moveBuffer : stillBuffer);
   return {
-    still_threshold: th,
-    move_threshold: th,
+    still_threshold: stillTh,
+    move_threshold: moveTh,
   };
 }
 
@@ -237,7 +239,8 @@ function filterWarmupSamples(samples, warmupSec = 5) {
 function computeProfile(samples, options = {}) {
   const {
     warmupSec = 5,
-    thresholdBufferPct = DEFAULT_THRESHOLD_BUFFER_PCT,
+    stillThresholdBuffer = DEFAULT_STILL_THRESHOLD_BUFFER,
+    moveThresholdBuffer = DEFAULT_MOVE_THRESHOLD_BUFFER,
   } = options;
 
   const afterWarmup = filterWarmupSamples(samples, warmupSec);
@@ -276,7 +279,7 @@ function computeProfile(samples, options = {}) {
       })
       .filter((v) => v != null);
 
-    const thresholds = suggestMaxThreshold(stillGate, motionGate, thresholdBufferPct);
+    const thresholds = suggestMaxThreshold(stillGate, motionGate, stillThresholdBuffer, moveThresholdBuffer);
 
     gates[gate] = {
       still: stats(stillGateStats),
@@ -317,7 +320,8 @@ function computeProfile(samples, options = {}) {
     zones,
     summary: {
       mode: 'empty_room',
-      threshold_buffer_pct: thresholdBufferPct,
+      still_threshold_buffer: stillThresholdBuffer,
+      move_threshold_buffer: moveThresholdBuffer,
       total_samples: samples.length,
       analysis_samples: analysisSamples.length,
       clean_samples: clean.length,
@@ -377,7 +381,8 @@ class CalibrationSession {
     this.id = uuidv4();
     this.sensorEntityId = sensorEntityId;
     this.durationSec = durationSec;
-    this.thresholdBufferPct = options.thresholdBufferPct ?? DEFAULT_THRESHOLD_BUFFER_PCT;
+    this.stillThresholdBuffer = options.stillThresholdBuffer ?? DEFAULT_STILL_THRESHOLD_BUFFER;
+    this.moveThresholdBuffer = options.moveThresholdBuffer ?? DEFAULT_MOVE_THRESHOLD_BUFFER;
     this.turnOffEngineeringAfter = options.turnOffEngineeringAfter !== false;
     this.bundle = options.bundle || null;
     this.engineeringModeMeta = options.engineeringModeMeta || null;
@@ -459,7 +464,8 @@ class CalibrationSession {
       this.status = 'completed';
       this.result = computeProfile(this.samples, {
         warmupSec: 5,
-        thresholdBufferPct: this.thresholdBufferPct,
+        stillThresholdBuffer: this.stillThresholdBuffer,
+        moveThresholdBuffer: this.moveThresholdBuffer,
       });
 
       let engineeringRestore = null;
@@ -491,7 +497,8 @@ class CalibrationSession {
       sensor: this.sensorEntityId,
       status: this.status,
       durationSec: this.durationSec,
-      thresholdBufferPct: this.thresholdBufferPct,
+      stillThresholdBuffer: this.stillThresholdBuffer,
+      moveThresholdBuffer: this.moveThresholdBuffer,
       turnOffEngineeringAfter: this.turnOffEngineeringAfter,
       startedAt: this.startedAt,
       endsAt: this.endsAt,

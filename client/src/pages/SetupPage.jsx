@@ -135,7 +135,7 @@ export default function SetupPage() {
           <li>Create a long-lived access token in Home Assistant → Profile → Security</li>
           <li>Enter your HA URL and token above, then save</li>
           <li>Pick a <strong>radar target</strong> sensor on <strong>Sensors</strong> or any workflow page</li>
-          <li>Use <strong>Comparison</strong> to tune thresholds against live gate energy</li>
+          <li>Use <strong>Manual Tweaking</strong> to tune thresholds against live gate energy</li>
           <li>Run <strong>Calibration</strong> with an empty room, then apply on <strong>Thresholds</strong></li>
           <li>Use <strong>Backups</strong> to export or restore profiles; customize the UI under <strong>Themes</strong></li>
         </ol>

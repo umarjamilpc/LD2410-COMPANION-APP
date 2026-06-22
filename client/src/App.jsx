@@ -14,7 +14,7 @@ const NAV = [
   { to: '/', label: 'Home Assistant', end: true },
   { to: '/sensors', label: 'Sensors' },
   { to: '/dashboard', label: 'Live Monitor' },
-  { to: '/comparison', label: 'Comparison' },
+  { to: '/comparison', label: 'Manual Tweaking' },
   { to: '/calibration', label: 'Calibration' },
   { to: '/results', label: 'Thresholds' },
   { to: '/backup', label: 'Backups' },

@@ -281,7 +281,8 @@ function classifyNumberEntity(entityId, friendlyName = '') {
   return { type: 'unknown' };
 }
 
-async function applyCalibration(store, sensorEntityId, profile) {
+async function applyCalibration(store, sensorEntityId, profile, options = {}) {
+  const { waitForSync = false, syncDelayMs = 1500 } = options;
   const allStates = await fetchAllStates(store);
   const numberEntities = findLd2410NumberEntities(allStates, sensorEntityId);
 
@@ -324,6 +325,26 @@ async function applyCalibration(store, sensorEntityId, profile) {
       value: clamped,
       classification,
     });
+  }
+
+  if (waitForSync && updates.length) {
+    await delay(syncDelayMs);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const refreshed = await fetchEntityStates(store, updates.map((u) => u.entity_id));
+      let settled = true;
+      for (const update of updates) {
+        const state = refreshed[update.entity_id];
+        const confirmed = Number(state?.state);
+        if (Number.isFinite(confirmed)) {
+          update.confirmed_value = confirmed;
+          if (Math.abs(confirmed - update.value) > 0.01) settled = false;
+        } else {
+          settled = false;
+        }
+      }
+      if (settled) break;
+      await delay(600);
+    }
   }
 
   return { updates, skipped, numberEntitiesFound: numberEntities.length };

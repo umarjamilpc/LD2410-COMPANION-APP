@@ -93,7 +93,7 @@ export default function ResultsPage() {
       <h1 className="page-title">Calibrated Thresholds</h1>
       <p className="page-subtitle">
         Review gate thresholds and zone distances from your empty-room session. Scale: 0 = most
-        sensitive, 100 = off. Peak sample plus your buffer. Apply to Home Assistant when ready.
+        sensitive, 100 = off. Peak sample plus still/move buffer points. Apply to Home Assistant when ready.
       </p>
 
       {message && (
@@ -117,7 +117,8 @@ export default function ResultsPage() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
-            <Stat label="Buffer" value={`${result.summary.threshold_buffer_pct ?? 5}%`} />
+            <Stat label="Still buffer" value={`+${result.summary.still_threshold_buffer ?? 5}`} />
+            <Stat label="Move buffer" value={`+${result.summary.move_threshold_buffer ?? 5}`} />
             <Stat label="Total samples" value={result.summary.total_samples} />
             <Stat label="Clean samples" value={result.summary.clean_samples ?? result.summary.still_samples} />
             <Stat label="Contamination" value={`${result.summary.contamination_pct ?? 0}%`} />
