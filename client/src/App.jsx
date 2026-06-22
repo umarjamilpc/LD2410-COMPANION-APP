@@ -1,7 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppConfig } from './AppConfigContext';
-import { useSensor } from './SensorContext';
 import {
   DEFAULT_NAV,
   DEFAULT_NAV_ORDER,
@@ -9,6 +8,7 @@ import {
   ROUTES,
   orderNavItems,
 } from './navConfig';
+import { APP_VERSION } from './version';
 import SetupPage from './pages/SetupPage';
 import SensorsPage from './pages/SensorsPage';
 import DashboardPage from './pages/DashboardPage';
@@ -19,50 +19,36 @@ import ComparisonPage from './pages/ComparisonPage';
 import ThemesPage from './pages/ThemesPage';
 
 export default function App() {
-  const { config, connectionStatus, savePreferences } = useAppConfig();
-  const { selectedSensor } = useSensor();
-
-  const connected = connectionStatus?.connected;
-  const configured = config?.ha_url && config?.token_set;
+  const { config, savePreferences } = useAppConfig();
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
 
   const navItems = useMemo(
     () => orderNavItems(DEFAULT_NAV, config?.preferences?.nav_order),
     [config?.preferences?.nav_order]
   );
 
-  function moveNavItem(index, direction) {
+  function reorderNav(from, to) {
+    if (from === null || from === to) return;
     const next = [...navItems];
-    const target = index + direction;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    savePreferences({ nav_order: next.map((item) => item.to) }).catch(() => {});
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    savePreferences({ nav_order: next.map((entry) => entry.to) }).catch(() => {});
   }
 
   function resetNavOrder() {
     savePreferences({ nav_order: DEFAULT_NAV_ORDER }).catch(() => {});
   }
 
+  function clearDrag() {
+    setDragFrom(null);
+    setDragOver(null);
+  }
+
   return (
     <div className="app-layout">
       <aside className="sidebar">
         <h1>LD2410 Companion</h1>
-
-        <div className="sidebar-status">
-          {!configured ? (
-            <span className="sidebar-status-pill idle">Not configured</span>
-          ) : connected ? (
-            <span className="sidebar-status-pill online">
-              {connectionStatus.location_name || 'Connected'}
-            </span>
-          ) : (
-            <span className="sidebar-status-pill offline">HA unreachable</span>
-          )}
-          {selectedSensor && (
-            <div className="sidebar-sensor" title={selectedSensor}>
-              Session: {selectedSensor.split('.')[1] || selectedSensor}
-            </div>
-          )}
-        </div>
 
         <div className="sidebar-nav-header">
           <span>Menu</span>
@@ -73,35 +59,46 @@ export default function App() {
 
         <nav className="sidebar-nav">
           {navItems.map((item, index) => (
-            <div key={item.to} className="sidebar-nav-row">
+            <div
+              key={item.to}
+              className={[
+                'sidebar-nav-row',
+                dragFrom === index ? 'dragging' : '',
+                dragOver === index && dragFrom !== index ? 'drag-over' : '',
+              ].filter(Boolean).join(' ')}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragFrom !== index) setDragOver(index);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                reorderNav(dragFrom, index);
+                clearDrag();
+              }}
+            >
+              <span
+                className="sidebar-drag-handle"
+                draggable
+                onDragStart={(e) => {
+                  setDragFrom(index);
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', String(index));
+                }}
+                onDragEnd={clearDrag}
+                aria-label={`Drag to reorder ${item.label}`}
+                title="Drag to reorder"
+              >
+                ⠿
+              </span>
               <NavLink to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
                 {item.label}
               </NavLink>
-              <div className="sidebar-nav-move">
-                <button
-                  type="button"
-                  className="sidebar-nav-btn"
-                  onClick={() => moveNavItem(index, -1)}
-                  disabled={index === 0}
-                  title="Move up"
-                  aria-label={`Move ${item.label} up`}
-                >
-                  ▲
-                </button>
-                <button
-                  type="button"
-                  className="sidebar-nav-btn"
-                  onClick={() => moveNavItem(index, 1)}
-                  disabled={index === navItems.length - 1}
-                  title="Move down"
-                  aria-label={`Move ${item.label} down`}
-                >
-                  ▼
-                </button>
-              </div>
             </div>
           ))}
         </nav>
+
+        <div className="sidebar-version">v{APP_VERSION}</div>
       </aside>
       <main className="main">
         <Routes>

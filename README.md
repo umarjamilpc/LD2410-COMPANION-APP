@@ -127,7 +127,7 @@ Light/dark mode and accent colors — saved with your preferences.
 
 ### Sidebar menu order
 
-Use the **▲** / **▼** buttons next to each menu item to reorder pages. Click **Reset order** to restore the default layout. Order is saved in `data/store.json`.
+Use drag-and-drop on the **⠿** handle next to each menu item to reorder pages. Click **Reset order** to restore the default layout. Order is saved in `data/store.json`.
 
 ---
 
