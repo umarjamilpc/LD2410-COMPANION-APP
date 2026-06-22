@@ -7,6 +7,7 @@ import { api, connectWebSocket } from '../api';
 import { useAppConfig } from '../AppConfigContext';
 import { useSensor } from '../SensorContext';
 import SensorPicker from '../components/SensorPicker';
+import { ROUTES } from '../navConfig';
 
 const DURATIONS = [60, 120, 180, 240, 300, 360, 420, 480, 540, 600];
 
@@ -195,7 +196,7 @@ export default function CalibrationPage() {
 
   return (
     <div>
-      <h1 className="page-title">Empty Room Calibration</h1>
+      <h1 className="page-title">Calibration</h1>
       <p className="page-subtitle">
         Capture gate energy while the room is empty, then compute thresholds from peak samples plus
         your buffer. Enable Radar Engineering Mode for g0–g8 energy readings.
@@ -366,7 +367,7 @@ export default function CalibrationPage() {
             Stop Early
           </button>
           {status.status === 'completed' && (
-            <Link to="/results" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
+            <Link to={ROUTES.thresholds} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
               View Results →
             </Link>
           )}

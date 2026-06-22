@@ -55,6 +55,14 @@ function broadcastCalibration(wss, data) {
   });
 }
 
+router.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 router.get('/config', (req, res) => {
   const store = storage.readStore();
   res.json({

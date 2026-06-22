@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useSensor } from '../SensorContext';
+import { ROUTES } from '../navConfig';
 
 export default function SensorsPage() {
   const { selectedSensor, setSelectedSensor } = useSensor();
@@ -70,7 +71,7 @@ export default function SensorsPage() {
           {loading ? 'Loading…' : 'Refresh list'}
         </button>
         {selectedSensor && (
-          <Link to="/calibration" className="btn" style={{ display: 'inline-block', textDecoration: 'none' }}>
+          <Link to={ROUTES.calibration} className="btn" style={{ display: 'inline-block', textDecoration: 'none' }}>
             Open calibration →
           </Link>
         )}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useSensor } from '../SensorContext';
+import { ROUTES } from '../navConfig';
 
 const GATE_ORDER = Array.from({ length: 9 }, (_, i) => `g${i}`);
 
@@ -71,13 +72,13 @@ export default function ResultsPage() {
   if (!result) {
     return (
       <div>
-        <h1 className="page-title">Calibrated Thresholds</h1>
+        <h1 className="page-title">Thresholds</h1>
         <p className="page-subtitle">No calibration results in this session yet.</p>
         <div className="card">
           <p style={{ color: 'var(--text-muted)' }}>
             Run an empty-room calibration, then return here to review and apply thresholds.
           </p>
-          <Link to="/calibration" className="btn" style={{ display: 'inline-block', marginTop: '1rem', textDecoration: 'none' }}>
+          <Link to={ROUTES.calibration} className="btn" style={{ display: 'inline-block', marginTop: '1rem', textDecoration: 'none' }}>
             Start calibration
           </Link>
         </div>
@@ -90,7 +91,7 @@ export default function ResultsPage() {
 
   return (
     <div>
-      <h1 className="page-title">Calibrated Thresholds</h1>
+      <h1 className="page-title">Thresholds</h1>
       <p className="page-subtitle">
         Review gate thresholds and zone distances from your empty-room session. Scale: 0 = most
         sensitive, 100 = off. Peak sample plus still/move buffer points. Apply to Home Assistant when ready.

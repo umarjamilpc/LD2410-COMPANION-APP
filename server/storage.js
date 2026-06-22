@@ -24,6 +24,16 @@ const DEFAULT_STORE = {
     turn_off_engineering_after: true,
     theme_color_mode: 'dark',
     theme_accent: 'mint',
+    nav_order: [
+      '/home-assistant',
+      '/sensors',
+      '/live-monitor',
+      '/manual-tweaking',
+      '/calibration',
+      '/thresholds',
+      '/backups',
+      '/themes',
+    ],
   },
 };
 
@@ -49,6 +59,25 @@ function readStore() {
       preferences: {
         ...DEFAULT_STORE.preferences,
         ...(parsed.preferences || {}),
+        nav_order: (() => {
+          const legacy = {
+            '/': '/home-assistant',
+            '/dashboard': '/live-monitor',
+            '/comparison': '/manual-tweaking',
+            '/results': '/thresholds',
+            '/backup': '/backups',
+          };
+          const raw = parsed.preferences?.nav_order;
+          if (!raw?.length) return DEFAULT_STORE.preferences.nav_order;
+          const seen = new Set();
+          return raw
+            .map((path) => legacy[path] || path)
+            .filter((path) => {
+              if (seen.has(path)) return false;
+              seen.add(path);
+              return true;
+            });
+        })(),
         still_threshold_buffer:
           parsed.preferences?.still_threshold_buffer
           ?? parsed.preferences?.threshold_buffer_pct

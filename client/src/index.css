@@ -154,7 +154,7 @@ label {
 }
 
 .sidebar {
-  width: 240px;
+  width: 260px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 1.5rem 1rem;
@@ -211,23 +211,94 @@ label {
   white-space: nowrap;
 }
 
-.sidebar nav a {
+.sidebar-nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.sidebar-nav-reset {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+}
+
+.sidebar-nav-reset:hover {
+  color: var(--accent);
+  background: var(--surface-2);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sidebar-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.sidebar-nav-row a {
+  flex: 1;
   display: block;
-  padding: 0.6rem 0.75rem;
+  padding: 0.55rem 0.75rem;
   border-radius: var(--radius);
   color: var(--text-muted);
   font-weight: 500;
   font-size: 0.9rem;
+  min-width: 0;
 }
 
-.sidebar nav a:hover {
+.sidebar-nav-row a:hover {
   background: var(--surface-2);
   color: var(--text);
 }
 
-.sidebar nav a.active {
+.sidebar-nav-row a.active {
   background: var(--accent-dim);
   color: var(--btn-on-accent);
+}
+
+.sidebar-nav-move {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.55rem;
+  line-height: 1;
+  width: 1.35rem;
+  height: 1rem;
+  padding: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.sidebar-nav-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sidebar-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .main {
