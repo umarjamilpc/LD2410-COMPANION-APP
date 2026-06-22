@@ -80,6 +80,14 @@ function buildSampleFromEntities(bundle, statesMap) {
     motion = isMotionDetected(primary.state, attrs);
   }
 
+  let presence = false;
+  const targetEntity = bundle.has_target && statesMap[bundle.has_target]
+    ? statesMap[bundle.has_target]
+    : primary;
+  if (targetEntity) {
+    presence = isMotionDetected(targetEntity.state, targetEntity.attributes);
+  }
+
   let distance = null;
   if (bundle.detection_distance && statesMap[bundle.detection_distance]) {
     const d = Number(statesMap[bundle.detection_distance].state);
@@ -129,6 +137,7 @@ function buildSampleFromEntities(bundle, statesMap) {
     timestamp: Date.now(),
     state: primary?.state,
     motion,
+    presence,
     distance,
     gates,
     engineering_mode: engineeringMode,
@@ -171,72 +180,79 @@ function extractSample(entityState) {
 }
 
 function stats(values) {
-  if (!values.length) return { avg: 0, min: 0, max: 0, count: 0 };
+  if (!values.length) return { avg: 0, min: 0, max: 0, count: 0, p95: 0 };
   const sum = values.reduce((a, b) => a + b, 0);
+  const sorted = [...values].sort((a, b) => a - b);
+  const p95idx = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1);
   return {
     avg: sum / values.length,
-    min: Math.min(...values),
-    max: Math.max(...values),
+    min: sorted[0],
+    max: sorted[sorted.length - 1],
+    p95: sorted[p95idx],
     count: values.length,
   };
 }
 
-function suggestThreshold(stillValues, motionValues) {
-  const still = stats(stillValues);
-  const motion = stats(motionValues);
+function clampThreshold(n) {
+  return Math.max(1, Math.min(100, Math.ceil(n)));
+}
 
-  if (!still.count && !motion.count) {
+function suggestMaxThreshold(stillValues, moveValues) {
+  if (!stillValues.length && !moveValues.length) {
     return { still_threshold: 50, move_threshold: 55 };
   }
 
-  if (!motion.count) {
-    const stillTh = Math.ceil(still.max * 1.25 + 2);
+  const stillMax = stillValues.length ? Math.max(...stillValues) : null;
+  const moveMax = moveValues.length ? Math.max(...moveValues) : null;
+
+  if (stillMax != null && moveMax != null) {
     return {
-      still_threshold: Math.max(1, Math.min(100, stillTh)),
-      move_threshold: Math.max(1, Math.min(100, stillTh + 5)),
+      still_threshold: clampThreshold(stillMax),
+      move_threshold: clampThreshold(moveMax),
     };
   }
 
-  if (!still.count) {
-    const moveTh = Math.floor(motion.min * 0.85);
-    return {
-      still_threshold: Math.max(1, Math.min(100, moveTh - 5)),
-      move_threshold: Math.max(1, Math.min(100, moveTh)),
-    };
-  }
+  const peak = stillMax ?? moveMax;
+  return {
+    still_threshold: clampThreshold(peak),
+    move_threshold: clampThreshold(peak),
+  };
+}
 
-  const gap = motion.min - still.max;
-  let stillTh;
-  let moveTh;
-
-  if (gap > 5) {
-    stillTh = Math.ceil(still.max * 1.15 + 1);
-    moveTh = Math.floor(motion.min * 0.9);
-  } else {
-    const midpoint = (still.max + motion.min) / 2;
-    stillTh = Math.floor(midpoint - 2);
-    moveTh = Math.ceil(midpoint + 2);
-  }
-
-  stillTh = Math.max(1, Math.min(100, stillTh));
-  moveTh = Math.max(stillTh + 3, Math.min(100, moveTh));
-
-  return { still_threshold: stillTh, move_threshold: moveTh };
+function filterWarmupSamples(samples, warmupSec = 5) {
+  if (!samples.length || warmupSec <= 0) return samples;
+  const start = samples[0].timestamp;
+  return samples.filter((s) => s.timestamp - start >= warmupSec * 1000);
 }
 
 function computeProfile(samples, options = {}) {
-  const { stillBaseline = false } = options;
+  const {
+    mode = 'empty_room',
+    stillBaseline = false,
+    warmupSec = 5,
+  } = options;
+
+  const afterWarmup = filterWarmupSamples(samples, warmupSec);
+  const contaminated = afterWarmup.filter((s) => s.presence || s.motion);
+  const clean = afterWarmup.filter((s) => !s.presence && !s.motion);
 
   let stillSamples = [];
   let motionSamples = [];
+  let analysisSamples = afterWarmup;
 
-  if (stillBaseline && samples.length > 10) {
-    const baselineEnd = Math.floor(samples.length * 0.35);
-    stillSamples = samples.slice(0, baselineEnd);
-    motionSamples = samples.slice(baselineEnd);
+  if (mode === 'empty_room') {
+    analysisSamples = clean.length >= Math.max(10, afterWarmup.length * 0.25)
+      ? clean
+      : afterWarmup;
+    stillSamples = analysisSamples;
+    motionSamples = analysisSamples;
+  } else if (stillBaseline && afterWarmup.length > 10) {
+    const baselineEnd = Math.floor(afterWarmup.length * 0.35);
+    stillSamples = afterWarmup.slice(0, baselineEnd);
+    motionSamples = afterWarmup.slice(baselineEnd);
   } else {
-    stillSamples = samples.filter((s) => !s.motion);
-    motionSamples = samples.filter((s) => s.motion);
+    stillSamples = afterWarmup.filter((s) => !s.motion && !s.presence);
+    motionSamples = afterWarmup.filter((s) => s.motion || s.presence);
   }
 
   const gates = {};
@@ -245,10 +261,16 @@ function computeProfile(samples, options = {}) {
   GATE_NAMES.forEach((g) => allGateKeys.add(g));
 
   for (const gate of allGateKeys) {
-    const stillGate = stillSamples
+    const stillGate = analysisSamples
       .map((s) => s.gates[gate]?.still ?? s.gates[gate]?.energy)
       .filter((v) => v != null);
-    const motionGate = motionSamples
+    const motionGate = analysisSamples
+      .map((s) => s.gates[gate]?.move ?? s.gates[gate]?.energy)
+      .filter((v) => v != null);
+    const stillGateStats = stillSamples
+      .map((s) => s.gates[gate]?.still ?? s.gates[gate]?.energy)
+      .filter((v) => v != null);
+    const motionGateStats = motionSamples
       .map((s) => s.gates[gate]?.move ?? s.gates[gate]?.energy)
       .filter((v) => v != null);
     const allGate = samples
@@ -259,22 +281,36 @@ function computeProfile(samples, options = {}) {
       })
       .filter((v) => v != null);
 
-    const thresholds = suggestThreshold(stillGate, motionGate);
+    const thresholds = suggestMaxThreshold(stillGate, motionGate);
 
     gates[gate] = {
-      still: stats(stillGate),
-      motion: stats(motionGate),
+      still: stats(stillGateStats),
+      motion: stats(motionGateStats),
       overall: stats(allGate),
       still_threshold: thresholds.still_threshold,
       move_threshold: thresholds.move_threshold,
     };
   }
 
-  const distances = samples.map((s) => s.distance).filter((v) => v != null);
-  const stillDist = stillSamples.map((s) => s.distance).filter((v) => v != null);
-  const motionDist = motionSamples.map((s) => s.distance).filter((v) => v != null);
+  const distances = analysisSamples.map((s) => s.distance).filter((v) => v != null && v > 0);
+  const stillDist = stillSamples.map((s) => s.distance).filter((v) => v != null && v > 0);
+  const motionDist = motionSamples.map((s) => s.distance).filter((v) => v != null && v > 0);
 
-  const zones = {
+  const zones = mode === 'empty_room'
+    ? {
+        max_still_distance: stillDist.length
+          ? Math.ceil(stats(stillDist).max)
+          : distances.length
+            ? Math.ceil(stats(distances).max)
+            : null,
+        max_move_distance: motionDist.length
+          ? Math.ceil(stats(motionDist).max)
+          : distances.length
+            ? Math.ceil(stats(distances).max)
+            : null,
+        detection_gate: distances.length ? Math.ceil(stats(distances).max) : null,
+      }
+    : {
     max_still_distance: stillDist.length
       ? Math.ceil(stats(stillDist).max * 1.1)
       : distances.length
@@ -285,21 +321,36 @@ function computeProfile(samples, options = {}) {
       : distances.length
         ? Math.ceil(stats(distances).max)
         : null,
-    detection_gate: distances.length ? Math.ceil(stats(distances).avg) : null,
-  };
+        detection_gate: distances.length ? Math.ceil(stats(distances).avg) : null,
+      };
 
-  const motionCount = samples.filter((s) => s.motion).length;
-  const stillCount = samples.length - motionCount;
+  const motionCount = afterWarmup.filter((s) => s.motion || s.presence).length;
+  const stillCount = afterWarmup.length - motionCount;
+  const contaminationPct = afterWarmup.length
+    ? Math.round((contaminated.length / afterWarmup.length) * 100)
+    : 0;
 
   return {
     id: uuidv4(),
     gates,
     zones,
     summary: {
+      mode,
       total_samples: samples.length,
+      analysis_samples: analysisSamples.length,
+      clean_samples: clean.length,
+      contaminated_samples: contaminated.length,
+      contamination_pct: contaminationPct,
       motion_samples: motionCount,
       still_samples: stillCount,
+      warmup_sec: warmupSec,
       duration_ms: samples.length > 1 ? samples[samples.length - 1].timestamp - samples[0].timestamp : 0,
+      quality:
+        mode === 'empty_room' && contaminationPct > 20
+          ? 'poor'
+          : mode === 'empty_room' && contaminationPct > 5
+            ? 'fair'
+            : 'good',
     },
     yaml: generateYaml(gates, zones),
   };
@@ -345,6 +396,7 @@ class CalibrationSession {
     this.sensorEntityId = sensorEntityId;
     this.durationSec = durationSec;
     this.stillBaseline = options.stillBaseline || false;
+    this.calibrationMode = options.calibrationMode || 'empty_room';
     this.turnOffEngineeringAfter = options.turnOffEngineeringAfter !== false;
     this.bundle = options.bundle || null;
     this.engineeringModeMeta = options.engineeringModeMeta || null;
@@ -426,6 +478,8 @@ class CalibrationSession {
       this.status = 'completed';
       this.result = computeProfile(this.samples, {
         stillBaseline: this.stillBaseline,
+        mode: this.calibrationMode,
+        warmupSec: 5,
       });
 
       let engineeringRestore = null;
@@ -458,6 +512,7 @@ class CalibrationSession {
       status: this.status,
       durationSec: this.durationSec,
       stillBaseline: this.stillBaseline,
+      calibrationMode: this.calibrationMode,
       turnOffEngineeringAfter: this.turnOffEngineeringAfter,
       startedAt: this.startedAt,
       endsAt: this.endsAt,

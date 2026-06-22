@@ -35,6 +35,7 @@ export const api = {
       body: JSON.stringify({
         duration,
         still_baseline,
+        calibration_mode: options.calibrationMode || 'empty_room',
         auto_engineering_mode: options.autoEngineeringMode !== false,
         turn_off_engineering_after: options.turnOffEngineeringAfter !== false,
       }),

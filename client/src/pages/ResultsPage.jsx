@@ -102,10 +102,22 @@ export default function ResultsPage() {
       {result.summary && (
         <div className="card">
           <h2>Session Summary</h2>
+          {result.summary.mode === 'empty_room' && result.summary.quality !== 'good' && (
+            <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
+              {result.summary.contamination_pct}% of samples had presence/motion detected.
+              Re-run with an empty room for better accuracy.
+            </div>
+          )}
+          {result.summary.mode === 'empty_room' && result.summary.quality === 'good' && (
+            <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+              Empty room baseline captured successfully ({result.summary.clean_samples} clean samples).
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
+            <Stat label="Mode" value={result.summary.mode === 'empty_room' ? 'Empty room' : 'Still + motion'} />
             <Stat label="Total samples" value={result.summary.total_samples} />
-            <Stat label="Motion samples" value={result.summary.motion_samples} />
-            <Stat label="Still samples" value={result.summary.still_samples} />
+            <Stat label="Clean samples" value={result.summary.clean_samples ?? result.summary.still_samples} />
+            <Stat label="Contamination" value={`${result.summary.contamination_pct ?? 0}%`} />
             <Stat label="Duration" value={`${Math.round(result.summary.duration_ms / 1000)}s`} />
           </div>
         </div>
@@ -118,7 +130,9 @@ export default function ResultsPage() {
             <div key={g} className="gate-card">
               <div className="gate-label">{g}</div>
               <div className="values">
-                still avg {gates[g].still?.avg?.toFixed(1) ?? '—'} · motion avg {gates[g].motion?.avg?.toFixed(1) ?? '—'}
+                still max {gates[g].still?.max?.toFixed(1) ?? '—'}
+                {' · '}
+                move max {gates[g].motion?.max?.toFixed(1) ?? '—'}
               </div>
               <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 move: <span style={{ color: 'var(--motion)', fontWeight: 700 }}>{gates[g].move_threshold}</span>

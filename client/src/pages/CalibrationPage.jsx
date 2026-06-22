@@ -22,7 +22,8 @@ function gateChartValue(gate) {
 export default function CalibrationPage() {
   const { config, savePreferences } = useAppConfig();
   const [duration, setDuration] = useState(60);
-  const [stillBaseline, setStillBaseline] = useState(true);
+  const [calibrationMode, setCalibrationMode] = useState('empty_room');
+  const [stillBaseline, setStillBaseline] = useState(false);
   const [autoEngineeringMode, setAutoEngineeringMode] = useState(true);
   const [turnOffEngineeringAfter, setTurnOffEngineeringAfter] = useState(true);
   const [bundle, setBundle] = useState(null);
@@ -39,6 +40,7 @@ export default function CalibrationPage() {
     if (!config?.preferences) return;
     const p = config.preferences;
     if (p.calibration_duration) setDuration(p.calibration_duration);
+    if (p.calibration_mode) setCalibrationMode(p.calibration_mode);
     if (p.still_baseline != null) setStillBaseline(p.still_baseline);
     if (p.auto_engineering_mode != null) setAutoEngineeringMode(p.auto_engineering_mode);
     if (p.turn_off_engineering_after != null) setTurnOffEngineeringAfter(p.turn_off_engineering_after);
@@ -147,6 +149,7 @@ export default function CalibrationPage() {
     sessionStorage.removeItem('calibrationResult');
     try {
       const s = await api.startCalibration(duration, stillBaseline, {
+        calibrationMode,
         autoEngineeringMode,
         turnOffEngineeringAfter,
       });
@@ -188,8 +191,9 @@ export default function CalibrationPage() {
     <div>
       <h1 className="page-title">Calibration Wizard</h1>
       <p className="page-subtitle">
-        Run a timed session to capture gate energy and distance data. ESPHome LD2410 gate sensors require
-        Radar Engineering Mode to be enabled.
+        Run a timed session to capture gate energy and distance data. For best results, use{' '}
+        <strong>Empty room</strong> mode and leave the space unoccupied for the full session.
+        ESPHome LD2410 gate sensors require Radar Engineering Mode to be enabled.
       </p>
 
       {!selectedSensor && (
@@ -248,6 +252,26 @@ export default function CalibrationPage() {
 
       <div className="card">
         <h2>Session Settings</h2>
+        <div className="form-group">
+          <label>Calibration mode</label>
+          <select
+            value={calibrationMode}
+            onChange={(e) => {
+              const val = e.target.value;
+              setCalibrationMode(val);
+              persistPreferences({ calibration_mode: val });
+            }}
+            disabled={running}
+          >
+            <option value="empty_room">Empty room — no one present (recommended)</option>
+            <option value="still_motion">Still + motion — walk through after baseline</option>
+          </select>
+          <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
+            {calibrationMode === 'empty_room'
+              ? 'Leave the room empty for the full session. Samples with presence/motion are excluded. Thresholds use the highest gate energy seen during sampling.'
+              : 'Capture still baseline, then move in the room so the app can separate still vs motion gate energies.'}
+          </small>
+        </div>
         <div className="form-row">
           <div className="form-group" style={{ flex: 1, minWidth: 120 }}>
             <label>Duration</label>
@@ -266,6 +290,7 @@ export default function CalibrationPage() {
             </select>
           </div>
         </div>
+        {calibrationMode === 'still_motion' && (
         <div className="toggle-row">
           <input
             type="checkbox"
@@ -281,6 +306,7 @@ export default function CalibrationPage() {
             Still zone baseline capture — stay still for the first ~35% of the session, then move
           </label>
         </div>
+        )}
         <div className="toggle-row">
           <input
             type="checkbox"
@@ -330,10 +356,15 @@ export default function CalibrationPage() {
         <div className="card">
           <h2>Live Status</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <span className={`live-badge ${latest?.motion ? 'motion' : 'still'}`}>
-              <span className={`status-dot ${latest?.motion ? 'on' : 'off'}`} />
-              {latest?.motion ? 'Motion detected' : 'No motion'}
+            <span className={`live-badge ${latest?.motion || latest?.presence ? 'motion' : 'still'}`}>
+              <span className={`status-dot ${latest?.motion || latest?.presence ? 'on' : 'off'}`} />
+              {latest?.motion || latest?.presence ? 'Presence detected' : 'Room clear'}
             </span>
+            {calibrationMode === 'empty_room' && (latest?.motion || latest?.presence) && (
+              <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>
+                Leave the room — presence will reduce accuracy
+              </span>
+            )}
             {latest?.engineering_mode != null && (
               <span className={`live-badge ${latest.engineering_mode ? 'motion' : 'still'}`}>
                 Eng. mode: {latest.engineering_mode ? 'ON' : 'OFF'}

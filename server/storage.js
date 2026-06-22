@@ -19,7 +19,8 @@ const DEFAULT_STORE = {
   },
   preferences: {
     calibration_duration: 60,
-    still_baseline: true,
+    calibration_mode: 'empty_room',
+    still_baseline: false,
     auto_engineering_mode: true,
     turn_off_engineering_after: true,
   },

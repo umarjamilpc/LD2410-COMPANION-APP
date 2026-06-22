@@ -242,6 +242,7 @@ router.post('/calibration/start', async (req, res) => {
 
     const duration = Number(req.body.duration) || 60;
     const stillBaseline = Boolean(req.body.still_baseline);
+    const calibrationMode = req.body.calibration_mode || 'empty_room';
     const turnOffEngineeringAfter = req.body.turn_off_engineering_after !== false;
     const autoEngineeringMode = req.body.auto_engineering_mode !== false;
 
@@ -270,6 +271,7 @@ router.post('/calibration/start', async (req, res) => {
       duration,
       {
         stillBaseline,
+        calibrationMode,
         turnOffEngineeringAfter,
         bundle,
         engineeringModeMeta,
