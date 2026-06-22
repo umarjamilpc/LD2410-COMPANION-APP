@@ -193,18 +193,19 @@ function stats(values) {
   };
 }
 
-const THRESHOLD_BUFFER_PCT = 5;
+const DEFAULT_THRESHOLD_BUFFER_PCT = 5;
 
 function clampThreshold(n) {
   return Math.max(1, Math.min(100, Math.ceil(n)));
 }
 
 /** LD2410: 0 = most sensitive, 100 = least sensitive (effectively off). */
-function thresholdFromPeak(peak) {
-  return clampThreshold(peak * (1 + THRESHOLD_BUFFER_PCT / 100));
+function thresholdFromPeak(peak, bufferPct = 5) {
+  const pct = Number.isFinite(bufferPct) ? bufferPct : 5;
+  return clampThreshold(peak * (1 + pct / 100));
 }
 
-function suggestMaxThreshold(stillValues, moveValues) {
+function suggestMaxThreshold(stillValues, moveValues, bufferPct = 5) {
   if (!stillValues.length && !moveValues.length) {
     return { still_threshold: 50, move_threshold: 55 };
   }
@@ -214,13 +215,13 @@ function suggestMaxThreshold(stillValues, moveValues) {
 
   if (stillMax != null && moveMax != null) {
     return {
-      still_threshold: thresholdFromPeak(stillMax),
-      move_threshold: thresholdFromPeak(moveMax),
+      still_threshold: thresholdFromPeak(stillMax, bufferPct),
+      move_threshold: thresholdFromPeak(moveMax, bufferPct),
     };
   }
 
   const peak = stillMax ?? moveMax;
-  const th = thresholdFromPeak(peak);
+  const th = thresholdFromPeak(peak, bufferPct);
   return {
     still_threshold: th,
     move_threshold: th,
@@ -235,33 +236,19 @@ function filterWarmupSamples(samples, warmupSec = 5) {
 
 function computeProfile(samples, options = {}) {
   const {
-    mode = 'empty_room',
-    stillBaseline = false,
     warmupSec = 5,
+    thresholdBufferPct = DEFAULT_THRESHOLD_BUFFER_PCT,
   } = options;
 
   const afterWarmup = filterWarmupSamples(samples, warmupSec);
   const contaminated = afterWarmup.filter((s) => s.presence || s.motion);
   const clean = afterWarmup.filter((s) => !s.presence && !s.motion);
 
-  let stillSamples = [];
-  let motionSamples = [];
-  let analysisSamples = afterWarmup;
-
-  if (mode === 'empty_room') {
-    analysisSamples = clean.length >= Math.max(10, afterWarmup.length * 0.25)
-      ? clean
-      : afterWarmup;
-    stillSamples = analysisSamples;
-    motionSamples = analysisSamples;
-  } else if (stillBaseline && afterWarmup.length > 10) {
-    const baselineEnd = Math.floor(afterWarmup.length * 0.35);
-    stillSamples = afterWarmup.slice(0, baselineEnd);
-    motionSamples = afterWarmup.slice(baselineEnd);
-  } else {
-    stillSamples = afterWarmup.filter((s) => !s.motion && !s.presence);
-    motionSamples = afterWarmup.filter((s) => s.motion || s.presence);
-  }
+  const analysisSamples = clean.length >= Math.max(10, afterWarmup.length * 0.25)
+    ? clean
+    : afterWarmup;
+  const stillSamples = analysisSamples;
+  const motionSamples = analysisSamples;
 
   const gates = {};
   const allGateKeys = new Set();
@@ -289,7 +276,7 @@ function computeProfile(samples, options = {}) {
       })
       .filter((v) => v != null);
 
-    const thresholds = suggestMaxThreshold(stillGate, motionGate);
+    const thresholds = suggestMaxThreshold(stillGate, motionGate, thresholdBufferPct);
 
     gates[gate] = {
       still: stats(stillGateStats),
@@ -304,33 +291,19 @@ function computeProfile(samples, options = {}) {
   const stillDist = stillSamples.map((s) => s.distance).filter((v) => v != null && v > 0);
   const motionDist = motionSamples.map((s) => s.distance).filter((v) => v != null && v > 0);
 
-  const zones = mode === 'empty_room'
-    ? {
-        max_still_distance: stillDist.length
-          ? Math.ceil(stats(stillDist).max)
-          : distances.length
-            ? Math.ceil(stats(distances).max)
-            : null,
-        max_move_distance: motionDist.length
-          ? Math.ceil(stats(motionDist).max)
-          : distances.length
-            ? Math.ceil(stats(distances).max)
-            : null,
-        detection_gate: distances.length ? Math.ceil(stats(distances).max) : null,
-      }
-    : {
+  const zones = {
     max_still_distance: stillDist.length
-      ? Math.ceil(stats(stillDist).max * 1.1)
-      : distances.length
-        ? Math.ceil(stats(distances).min)
-        : null,
-    max_move_distance: motionDist.length
-      ? Math.ceil(stats(motionDist).max * 1.05)
+      ? Math.ceil(stats(stillDist).max)
       : distances.length
         ? Math.ceil(stats(distances).max)
         : null,
-        detection_gate: distances.length ? Math.ceil(stats(distances).avg) : null,
-      };
+    max_move_distance: motionDist.length
+      ? Math.ceil(stats(motionDist).max)
+      : distances.length
+        ? Math.ceil(stats(distances).max)
+        : null,
+    detection_gate: distances.length ? Math.ceil(stats(distances).max) : null,
+  };
 
   const motionCount = afterWarmup.filter((s) => s.motion || s.presence).length;
   const stillCount = afterWarmup.length - motionCount;
@@ -343,7 +316,8 @@ function computeProfile(samples, options = {}) {
     gates,
     zones,
     summary: {
-      mode,
+      mode: 'empty_room',
+      threshold_buffer_pct: thresholdBufferPct,
       total_samples: samples.length,
       analysis_samples: analysisSamples.length,
       clean_samples: clean.length,
@@ -354,9 +328,9 @@ function computeProfile(samples, options = {}) {
       warmup_sec: warmupSec,
       duration_ms: samples.length > 1 ? samples[samples.length - 1].timestamp - samples[0].timestamp : 0,
       quality:
-        mode === 'empty_room' && contaminationPct > 20
+        contaminationPct > 20
           ? 'poor'
-          : mode === 'empty_room' && contaminationPct > 5
+          : contaminationPct > 5
             ? 'fair'
             : 'good',
     },
@@ -403,8 +377,7 @@ class CalibrationSession {
     this.id = uuidv4();
     this.sensorEntityId = sensorEntityId;
     this.durationSec = durationSec;
-    this.stillBaseline = options.stillBaseline || false;
-    this.calibrationMode = options.calibrationMode || 'empty_room';
+    this.thresholdBufferPct = options.thresholdBufferPct ?? DEFAULT_THRESHOLD_BUFFER_PCT;
     this.turnOffEngineeringAfter = options.turnOffEngineeringAfter !== false;
     this.bundle = options.bundle || null;
     this.engineeringModeMeta = options.engineeringModeMeta || null;
@@ -485,9 +458,8 @@ class CalibrationSession {
     if (this.status === 'running' || this.status === 'idle') {
       this.status = 'completed';
       this.result = computeProfile(this.samples, {
-        stillBaseline: this.stillBaseline,
-        mode: this.calibrationMode,
         warmupSec: 5,
+        thresholdBufferPct: this.thresholdBufferPct,
       });
 
       let engineeringRestore = null;
@@ -519,8 +491,7 @@ class CalibrationSession {
       sensor: this.sensorEntityId,
       status: this.status,
       durationSec: this.durationSec,
-      stillBaseline: this.stillBaseline,
-      calibrationMode: this.calibrationMode,
+      thresholdBufferPct: this.thresholdBufferPct,
       turnOffEngineeringAfter: this.turnOffEngineeringAfter,
       startedAt: this.startedAt,
       endsAt: this.endsAt,

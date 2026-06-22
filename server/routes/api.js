@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const storage = require('../storage');
 const ha = require('../homeassistant');
 const calibration = require('../calibration');
+const { buildRecordName, buildExportFilename } = require('../naming');
 const { discoverLd2410Bundle, getEntityIdsToPoll, buildRegistryMaps } = require('../ld2410');
 
 const router = express.Router();
@@ -241,13 +242,17 @@ router.post('/calibration/start', async (req, res) => {
     }
 
     const duration = Number(req.body.duration) || 60;
-    const stillBaseline = Boolean(req.body.still_baseline);
-    const calibrationMode = req.body.calibration_mode || 'empty_room';
     const turnOffEngineeringAfter = req.body.turn_off_engineering_after !== false;
     const autoEngineeringMode = req.body.auto_engineering_mode !== false;
+    const thresholdBufferPct = Number(
+      req.body.threshold_buffer_pct ?? store.preferences?.threshold_buffer_pct ?? 5
+    );
 
     if (duration < 60 || duration > 600) {
       return res.status(400).json({ error: 'Duration must be between 60 and 600 seconds (1–10 minutes)' });
+    }
+    if (thresholdBufferPct < 0 || thresholdBufferPct > 50) {
+      return res.status(400).json({ error: 'Threshold buffer must be between 0 and 50 percent' });
     }
 
     const allStates = await ha.fetchAllStates(store);
@@ -270,8 +275,7 @@ router.post('/calibration/start', async (req, res) => {
       store.selected_sensor,
       duration,
       {
-        stillBaseline,
-        calibrationMode,
+        thresholdBufferPct,
         turnOffEngineeringAfter,
         bundle,
         engineeringModeMeta,
@@ -331,13 +335,16 @@ router.post('/calibration/apply', async (req, res) => {
 
     const result = await ha.applyCalibration(store, sensor, profile);
 
+    const timestamp = new Date().toISOString();
     const calibrationRecord = {
       id: profile.id || uuidv4(),
       sensor,
-      timestamp: new Date().toISOString(),
+      timestamp,
+      kind: 'applied',
       gates: profile.gates,
       zones: profile.zones,
       yaml: profile.yaml,
+      name: buildRecordName({ kind: 'applied', sensor, timestamp }),
     };
     storage.addCalibration(calibrationRecord);
 
@@ -366,14 +373,22 @@ router.post('/backups', (req, res) => {
     return res.status(400).json({ error: 'No profile to backup' });
   }
 
+  const timestamp = new Date().toISOString();
+  const sensor = req.body.sensor || store.selected_sensor;
   const backup = {
     id: uuidv4(),
-    sensor: req.body.sensor || store.selected_sensor,
-    timestamp: new Date().toISOString(),
+    sensor,
+    timestamp,
+    kind: 'session',
     gates: profile.gates,
     zones: profile.zones,
     yaml: profile.yaml,
-    name: req.body.name || `Backup ${new Date().toLocaleString()}`,
+    name: buildRecordName({
+      kind: 'session',
+      sensor,
+      timestamp,
+      customName: req.body.name,
+    }),
   };
 
   const saved = storage.saveBackupFile(backup);
@@ -441,9 +456,19 @@ router.post('/backups/from-current', async (req, res) => {
       });
     }
 
+    const timestamp = new Date().toISOString();
     const backup = {
       ...profile,
-      name: req.body.name || profile.name,
+      id: profile.id || uuidv4(),
+      sensor,
+      timestamp,
+      kind: 'ha_snapshot',
+      name: buildRecordName({
+        kind: 'ha_snapshot',
+        sensor,
+        timestamp,
+        customName: req.body.name,
+      }),
     };
     const saved = storage.saveBackupFile(backup);
     res.json({ backup: saved });
@@ -456,7 +481,7 @@ router.get('/backups/:id/export', (req, res) => {
   const backup = storage.readBackupFile(req.params.id);
   if (!backup) return res.status(404).json({ error: 'Backup not found' });
 
-  const filename = `ld2410-backup-${backup.id || 'export'}.json`;
+  const filename = buildExportFilename(backup);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(JSON.stringify(backup, null, 2));
@@ -471,14 +496,22 @@ router.post('/backups/import', (req, res) => {
       return res.status(400).json({ error: 'Invalid calibration file: missing gates or zones' });
     }
 
+    const timestamp = data.timestamp || new Date().toISOString();
+    const sensor = data.sensor || store.selected_sensor || '';
     const backup = {
       id: uuidv4(),
-      sensor: data.sensor || store.selected_sensor || '',
-      timestamp: data.timestamp || new Date().toISOString(),
+      sensor,
+      timestamp,
+      kind: 'imported',
       gates: data.gates || {},
       zones: data.zones || {},
       yaml: data.yaml || '',
-      name: data.name || `Imported ${new Date().toLocaleString()}`,
+      name: buildRecordName({
+        kind: 'imported',
+        sensor,
+        timestamp,
+        customName: data.name,
+      }),
     };
 
     const saved = storage.saveBackupFile(backup);

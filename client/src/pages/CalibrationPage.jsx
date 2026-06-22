@@ -22,8 +22,7 @@ function gateChartValue(gate) {
 export default function CalibrationPage() {
   const { config, savePreferences } = useAppConfig();
   const [duration, setDuration] = useState(60);
-  const [calibrationMode, setCalibrationMode] = useState('empty_room');
-  const [stillBaseline, setStillBaseline] = useState(false);
+  const [thresholdBufferPct, setThresholdBufferPct] = useState(5);
   const [autoEngineeringMode, setAutoEngineeringMode] = useState(true);
   const [turnOffEngineeringAfter, setTurnOffEngineeringAfter] = useState(true);
   const [bundle, setBundle] = useState(null);
@@ -40,8 +39,7 @@ export default function CalibrationPage() {
     if (!config?.preferences) return;
     const p = config.preferences;
     if (p.calibration_duration) setDuration(p.calibration_duration);
-    if (p.calibration_mode) setCalibrationMode(p.calibration_mode);
-    if (p.still_baseline != null) setStillBaseline(p.still_baseline);
+    if (p.threshold_buffer_pct != null) setThresholdBufferPct(p.threshold_buffer_pct);
     if (p.auto_engineering_mode != null) setAutoEngineeringMode(p.auto_engineering_mode);
     if (p.turn_off_engineering_after != null) setTurnOffEngineeringAfter(p.turn_off_engineering_after);
   }, [config?.preferences]);
@@ -148,8 +146,8 @@ export default function CalibrationPage() {
     resultRef.current = null;
     sessionStorage.removeItem('calibrationResult');
     try {
-      const s = await api.startCalibration(duration, stillBaseline, {
-        calibrationMode,
+      const s = await api.startCalibration(duration, {
+        thresholdBufferPct,
         autoEngineeringMode,
         turnOffEngineeringAfter,
       });
@@ -252,26 +250,10 @@ export default function CalibrationPage() {
 
       <div className="card">
         <h2>Session Settings</h2>
-        <div className="form-group">
-          <label>Calibration mode</label>
-          <select
-            value={calibrationMode}
-            onChange={(e) => {
-              const val = e.target.value;
-              setCalibrationMode(val);
-              persistPreferences({ calibration_mode: val });
-            }}
-            disabled={running}
-          >
-            <option value="empty_room">Empty room — no one present (recommended)</option>
-            <option value="still_motion">Still + motion — walk through after baseline</option>
-          </select>
-          <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
-            {calibrationMode === 'empty_room'
-              ? 'Leave the room empty for the full session. Samples with presence/motion are excluded. Thresholds use peak sample energy + 5% (0 = most sensitive, 100 = off).'
-              : 'Capture still baseline, then move in the room so the app can separate still vs motion gate energies.'}
-          </small>
-        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+          Empty room calibration — leave the space unoccupied for the full session. Samples with
+          presence or motion are excluded. Threshold scale: 0 = most sensitive, 100 = off.
+        </p>
         <div className="form-row">
           <div className="form-group" style={{ flex: 1, minWidth: 120 }}>
             <label>Duration</label>
@@ -289,24 +271,30 @@ export default function CalibrationPage() {
               ))}
             </select>
           </div>
+          <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
+            <label>Threshold buffer ({thresholdBufferPct}%)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={1}
+                value={thresholdBufferPct}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setThresholdBufferPct(val);
+                  persistPreferences({ threshold_buffer_pct: val });
+                }}
+                disabled={running}
+                style={{ flex: 1 }}
+              />
+              <span className="range-value">{thresholdBufferPct}%</span>
+            </div>
+            <small style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Added above peak gate energy per sample (higher = less sensitive).
+            </small>
+          </div>
         </div>
-        {calibrationMode === 'still_motion' && (
-        <div className="toggle-row">
-          <input
-            type="checkbox"
-            id="still_baseline"
-            checked={stillBaseline}
-            onChange={(e) => {
-              setStillBaseline(e.target.checked);
-              persistPreferences({ still_baseline: e.target.checked });
-            }}
-            disabled={running}
-          />
-          <label htmlFor="still_baseline" style={{ margin: 0 }}>
-            Still zone baseline capture — stay still for the first ~35% of the session, then move
-          </label>
-        </div>
-        )}
         <div className="toggle-row">
           <input
             type="checkbox"
@@ -360,7 +348,7 @@ export default function CalibrationPage() {
               <span className={`status-dot ${latest?.motion || latest?.presence ? 'on' : 'off'}`} />
               {latest?.motion || latest?.presence ? 'Presence detected' : 'Room clear'}
             </span>
-            {calibrationMode === 'empty_room' && (latest?.motion || latest?.presence) && (
+            {(latest?.motion || latest?.presence) && (
               <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>
                 Leave the room — presence will reduce accuracy
               </span>

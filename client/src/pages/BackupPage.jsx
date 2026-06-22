@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
+import { formatLocalDateTime, recordDisplayName, buildExportFilename } from '../format';
 
 export default function BackupPage() {
   const [backups, setBackups] = useState([]);
@@ -61,7 +62,7 @@ export default function BackupPage() {
     const url = api.exportBackupUrl(backup.id);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ld2410-backup-${backup.id}.json`;
+    a.download = buildExportFilename(backup);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -117,7 +118,7 @@ export default function BackupPage() {
   }
 
   function handleExportHistory(c) {
-    downloadJson(c, `ld2410-calibration-${c.id?.slice(0, 8) || 'export'}.json`);
+    downloadJson(c, buildExportFilename(c));
   }
 
   async function handleImportFile(e) {
@@ -140,11 +141,7 @@ export default function BackupPage() {
   }
 
   function formatDate(iso) {
-    try {
-      return new Date(iso).toLocaleString();
-    } catch {
-      return iso;
-    }
+    return formatLocalDateTime(iso);
   }
 
   async function handleRestoreFromHistory(c) {
@@ -242,9 +239,9 @@ export default function BackupPage() {
             {backups.map((b) => (
               <div key={b.id} className="backup-item">
                 <div>
-                  <div style={{ fontWeight: 600 }}>{b.name || 'Unnamed backup'}</div>
+                  <div style={{ fontWeight: 600 }}>{recordDisplayName(b)}</div>
                   <div className="meta">
-                    {b.sensor} · {formatDate(b.timestamp)}
+                    {formatDate(b.timestamp)}
                   </div>
                 </div>
                 <div className="form-row" style={{ margin: 0 }}>
@@ -280,11 +277,9 @@ export default function BackupPage() {
             {calibrations.map((c) => (
               <div key={c.id} className="backup-item">
                 <div>
-                  <div style={{ fontWeight: 600, fontFamily: 'var(--mono)', fontSize: '0.85rem' }}>
-                    {c.id?.slice(0, 8)}…
-                  </div>
+                  <div style={{ fontWeight: 600 }}>{recordDisplayName(c)}</div>
                   <div className="meta">
-                    {c.sensor} · {formatDate(c.timestamp)}
+                    {formatDate(c.timestamp)}
                   </div>
                 </div>
                 <div className="form-row" style={{ margin: 0 }}>

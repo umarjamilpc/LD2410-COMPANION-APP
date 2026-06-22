@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const PRESENCE_KEYWORDS = ['motion', 'occupancy', 'presence', 'radar', 'ld2410'];
 const { discoverLd2410Bundle, discoverLd2410Devices, buildRegistryMaps } = require('./ld2410');
 
@@ -329,7 +330,7 @@ async function applyCalibration(store, sensorEntityId, profile) {
 }
 
 async function fetchCurrentCalibration(store, sensorEntityId) {
-  const { v4: uuidv4 } = require('uuid');
+  const { buildRecordName } = require('./naming');
   const { generateYaml } = require('./calibration');
 
   const allStates = await fetchAllStates(store);
@@ -365,14 +366,16 @@ async function fetchCurrentCalibration(store, sensorEntityId) {
     }
   }
 
+  const timestamp = new Date().toISOString();
   return {
     id: uuidv4(),
     sensor: sensorEntityId,
-    timestamp: new Date().toISOString(),
+    timestamp,
+    kind: 'ha_snapshot',
     gates,
     zones,
     yaml: generateYaml(gates, zones),
-    name: `Current HA gates ${new Date().toLocaleString()}`,
+    name: buildRecordName({ kind: 'ha_snapshot', sensor: sensorEntityId, timestamp }),
     source: 'home_assistant',
     entities,
   };

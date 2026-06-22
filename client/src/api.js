@@ -29,13 +29,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ enable, sensor }),
     }),
-  startCalibration: (duration, still_baseline, options = {}) =>
+  startCalibration: (duration, options = {}) =>
     request('/calibration/start', {
       method: 'POST',
       body: JSON.stringify({
         duration,
-        still_baseline,
-        calibration_mode: options.calibrationMode || 'empty_room',
+        threshold_buffer_pct: options.thresholdBufferPct ?? 5,
         auto_engineering_mode: options.autoEngineeringMode !== false,
         turn_off_engineering_after: options.turnOffEngineeringAfter !== false,
       }),

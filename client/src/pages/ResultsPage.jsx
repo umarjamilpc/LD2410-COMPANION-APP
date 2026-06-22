@@ -90,8 +90,8 @@ export default function ResultsPage() {
     <div>
       <h1 className="page-title">Calibration Results</h1>
       <p className="page-subtitle">
-        Computed gate thresholds and zone cutoffs (0 = most sensitive, 100 = off). Peak sample + 5% buffer.
-        Review before pushing to Home Assistant.
+        Computed gate thresholds and zone cutoffs (0 = most sensitive, 100 = off).
+        Peak sample plus your configured buffer. Review before pushing to Home Assistant.
       </p>
 
       {message && (
@@ -103,19 +103,19 @@ export default function ResultsPage() {
       {result.summary && (
         <div className="card">
           <h2>Session Summary</h2>
-          {result.summary.mode === 'empty_room' && result.summary.quality !== 'good' && (
+          {result.summary.quality !== 'good' && (
             <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
               {result.summary.contamination_pct}% of samples had presence/motion detected.
               Re-run with an empty room for better accuracy.
             </div>
           )}
-          {result.summary.mode === 'empty_room' && result.summary.quality === 'good' && (
+          {result.summary.quality === 'good' && (
             <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
               Empty room baseline captured successfully ({result.summary.clean_samples} clean samples).
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
-            <Stat label="Mode" value={result.summary.mode === 'empty_room' ? 'Empty room' : 'Still + motion'} />
+            <Stat label="Buffer" value={`${result.summary.threshold_buffer_pct ?? 5}%`} />
             <Stat label="Total samples" value={result.summary.total_samples} />
             <Stat label="Clean samples" value={result.summary.clean_samples ?? result.summary.still_samples} />
             <Stat label="Contamination" value={`${result.summary.contamination_pct ?? 0}%`} />

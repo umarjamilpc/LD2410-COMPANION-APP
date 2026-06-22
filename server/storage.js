@@ -19,10 +19,11 @@ const DEFAULT_STORE = {
   },
   preferences: {
     calibration_duration: 60,
-    calibration_mode: 'empty_room',
-    still_baseline: false,
+    threshold_buffer_pct: 5,
     auto_engineering_mode: true,
     turn_off_engineering_after: true,
+    theme_color_mode: 'dark',
+    theme_accent: 'mint',
   },
 };
 
@@ -114,7 +115,7 @@ function listBackupFiles() {
       }
     })
     .filter(Boolean)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 }
 
 function readBackupFile(id) {

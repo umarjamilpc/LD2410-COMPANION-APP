@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 import CalibrationPage from './pages/CalibrationPage';
 import ResultsPage from './pages/ResultsPage';
 import BackupPage from './pages/BackupPage';
+import ThemesPage from './pages/ThemesPage';
 
 const NAV = [
   { to: '/', label: 'Setup', end: true },
@@ -14,6 +15,7 @@ const NAV = [
   { to: '/calibration', label: 'Calibration' },
   { to: '/results', label: 'Results' },
   { to: '/backup', label: 'Backup / Restore' },
+  { to: '/themes', label: 'Themes' },
 ];
 
 export default function App() {
@@ -60,6 +62,7 @@ export default function App() {
           <Route path="/calibration" element={<CalibrationPage />} />
           <Route path="/results" element={<ResultsPage />} />
           <Route path="/backup" element={<BackupPage />} />
+          <Route path="/themes" element={<ThemesPage />} />
         </Routes>
       </main>
     </div>
