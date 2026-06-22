@@ -7,6 +7,7 @@ const ha = require('../homeassistant');
 const calibration = require('../calibration');
 const { buildRecordName, buildExportFilename } = require('../naming');
 const { discoverLd2410Bundle, getEntityIdsToPoll, buildRegistryMaps } = require('../ld2410');
+const { buildSampleFromEntities } = require('../calibration');
 
 const router = express.Router();
 
@@ -168,6 +169,80 @@ router.get('/sensors/ld2410-bundle', async (req, res) => {
     const registryMaps = await loadRegistryMaps(store);
     const bundle = discoverLd2410Bundle(allStates, sensor, registryMaps);
     res.json({ sensor, bundle });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/sensors/gate-comparison', async (req, res) => {
+  try {
+    const store = storage.readStore();
+    const sensor = req.query.sensor;
+    if (!sensor) return res.status(400).json({ error: 'sensor query parameter is required' });
+
+    const allStates = await ha.fetchAllStates(store);
+    const registryMaps = await loadRegistryMaps(store);
+    const bundle = discoverLd2410Bundle(allStates, sensor, registryMaps);
+    const pollIds = getEntityIdsToPoll(bundle);
+    const statesMap = await ha.fetchEntityStates(store, pollIds);
+    const sample = buildSampleFromEntities(bundle, statesMap);
+
+    const numberEntities = ha.findLd2410NumberEntities(allStates, sensor);
+    const gates = {};
+    for (let i = 0; i <= 8; i += 1) {
+      gates[`g${i}`] = {
+        move_threshold: null,
+        still_threshold: null,
+        move_energy: null,
+        still_energy: null,
+        move_entity_id: null,
+        still_entity_id: null,
+        min: 0,
+        max: 100,
+      };
+    }
+
+    for (const entity of numberEntities) {
+      const classification = ha.classifyNumberEntity(
+        entity.entity_id,
+        entity.attributes?.friendly_name || ''
+      );
+      if (classification.type !== 'move_threshold' && classification.type !== 'still_threshold') {
+        continue;
+      }
+      const gateKey = `g${classification.gate}`;
+      if (!gates[gateKey]) continue;
+      const val = Number(entity.state);
+      const min = entity.attributes?.min ?? 0;
+      const max = entity.attributes?.max ?? 100;
+      gates[gateKey].min = min;
+      gates[gateKey].max = max;
+      if (classification.type === 'move_threshold') {
+        gates[gateKey].move_threshold = Number.isFinite(val) ? val : null;
+        gates[gateKey].move_entity_id = entity.entity_id;
+      } else {
+        gates[gateKey].still_threshold = Number.isFinite(val) ? val : null;
+        gates[gateKey].still_entity_id = entity.entity_id;
+      }
+    }
+
+    for (const [gateKey, energy] of Object.entries(sample.gates || {})) {
+      if (!gates[gateKey]) continue;
+      if (energy.move != null) gates[gateKey].move_energy = energy.move;
+      if (energy.still != null) gates[gateKey].still_energy = energy.still;
+      if (energy.energy != null) {
+        if (gates[gateKey].move_energy == null) gates[gateKey].move_energy = energy.energy;
+        if (gates[gateKey].still_energy == null) gates[gateKey].still_energy = energy.energy;
+      }
+    }
+
+    res.json({
+      sensor,
+      engineering_mode_on: bundle.engineering_mode_on,
+      gate_data_available: bundle.gate_data_available,
+      gates,
+      updated_at: new Date().toISOString(),
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

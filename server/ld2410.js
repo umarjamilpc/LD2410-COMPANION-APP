@@ -103,6 +103,42 @@ function isLd2410RadarSensor(entity) {
   );
 }
 
+/** Main presence sensor only — excludes radar_moving_target and radar_still_target. */
+function isPrimaryRadarTarget(entity) {
+  if (!entity?.entity_id?.startsWith('binary_sensor.')) return false;
+  if (!isLd2410RadarSensor(entity)) return false;
+
+  const slug = (entity.entity_id.split('.')[1] || '').toLowerCase();
+  const name = (entity.attributes?.friendly_name || '').toLowerCase();
+  const haystack = `${slug} ${name}`;
+
+  if (haystack.includes('moving_target') || haystack.includes('moving target')) return false;
+  if (haystack.includes('still_target') || haystack.includes('still target')) return false;
+
+  return (
+    slug.endsWith('_radar_target') ||
+    slug.endsWith('_has_target') ||
+    (haystack.includes('radar') && haystack.includes('target'))
+  );
+}
+
+function pickPrimarySensor(entities) {
+  const candidates = (entities || []).filter(isPrimaryRadarTarget);
+  if (!candidates.length) return null;
+
+  const ranked = [...candidates].sort((a, b) => {
+    const score = (e) => {
+      const slug = (e.entity_id.split('.')[1] || '').toLowerCase();
+      if (slug.endsWith('_radar_target')) return 0;
+      if (slug.includes('has_target')) return 1;
+      return 2;
+    };
+    return score(a) - score(b);
+  });
+
+  return ranked[0];
+}
+
 function discoverLd2410Devices(allStates, registryMaps = null) {
   const devices = new Map();
 
@@ -257,6 +293,8 @@ module.exports = {
   buildRegistryMaps,
   findByDeviceOrPrefix,
   isLd2410RadarSensor,
+  isPrimaryRadarTarget,
+  pickPrimarySensor,
   extractEntityPrefix,
   classifyGateEnergySensor,
   isValidSensorValue,

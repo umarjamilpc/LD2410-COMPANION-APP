@@ -58,8 +58,9 @@ export default function SensorsPage() {
     <div>
       <h1 className="page-title">Sensors</h1>
       <p className="page-subtitle">
-        Choose an ESPHome LD2410 radar for this session. The selection is not saved to disk — pick
-        again after a refresh or new visit.
+        Choose an ESPHome LD2410 radar target sensor for this session (e.g.{' '}
+        <code style={{ fontFamily: 'var(--mono)' }}>radar_target</code>). Moving/still target
+        sub-sensors are hidden. Selection is not saved to disk.
       </p>
 
       {error && <div className="alert alert-error">{error}</div>}
@@ -76,7 +77,7 @@ export default function SensorsPage() {
       </div>
 
       <div className="card">
-        <h2>Available LD2410 devices ({sensors.length})</h2>
+        <h2>LD2410 radar targets ({sensors.length})</h2>
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Fetching entities from Home Assistant…</p>
         ) : sensors.length === 0 ? (

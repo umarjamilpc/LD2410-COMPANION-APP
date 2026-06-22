@@ -694,3 +694,70 @@ label {
   min-width: 3rem;
   text-align: right;
 }
+
+.comparison-table td {
+  vertical-align: middle;
+}
+
+.comparison-threshold-input {
+  width: 4.5rem;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+}
+
+.comparison-range {
+  min-width: 140px;
+}
+
+.comparison-range-track {
+  position: relative;
+  height: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: visible;
+}
+
+.comparison-range-track.triggered {
+  border-color: var(--motion);
+}
+
+.comparison-range-energy {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+  opacity: 0.55;
+  border-radius: 4px 0 0 4px;
+  max-width: 100%;
+}
+
+.comparison-range-threshold {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--warning);
+  border-radius: 2px;
+  z-index: 1;
+}
+
+.comparison-range-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.comparison-tweak {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.comparison-tweak .btn {
+  padding: 0.35rem 0.55rem;
+  min-width: 2rem;
+}

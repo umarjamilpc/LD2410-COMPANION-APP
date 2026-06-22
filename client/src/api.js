@@ -67,6 +67,10 @@ export const api = {
   importBackup: (data) =>
     request('/backups/import', { method: 'POST', body: JSON.stringify(data) }),
   exportBackupUrl: (id) => `/api/backups/${id}/export`,
+  getGateComparison: (sensor) => {
+    if (!sensor) return Promise.reject(new Error('sensor is required'));
+    return request(`/sensors/gate-comparison?sensor=${encodeURIComponent(sensor)}`);
+  },
   getCurrentCalibration: (sensor) => {
     if (!sensor) return Promise.reject(new Error('sensor is required'));
     return request(`/sensors/current-calibration?sensor=${encodeURIComponent(sensor)}`);

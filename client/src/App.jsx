@@ -7,12 +7,14 @@ import DashboardPage from './pages/DashboardPage';
 import CalibrationPage from './pages/CalibrationPage';
 import ResultsPage from './pages/ResultsPage';
 import BackupPage from './pages/BackupPage';
+import ComparisonPage from './pages/ComparisonPage';
 import ThemesPage from './pages/ThemesPage';
 
 const NAV = [
   { to: '/', label: 'Home Assistant', end: true },
   { to: '/sensors', label: 'Sensors' },
   { to: '/dashboard', label: 'Live Monitor' },
+  { to: '/comparison', label: 'Comparison' },
   { to: '/calibration', label: 'Calibration' },
   { to: '/results', label: 'Thresholds' },
   { to: '/backup', label: 'Backups' },
@@ -61,6 +63,7 @@ export default function App() {
           <Route path="/" element={<SetupPage />} />
           <Route path="/sensors" element={<SensorsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/comparison" element={<ComparisonPage />} />
           <Route path="/calibration" element={<CalibrationPage />} />
           <Route path="/results" element={<ResultsPage />} />
           <Route path="/backup" element={<BackupPage />} />

@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const PRESENCE_KEYWORDS = ['motion', 'occupancy', 'presence', 'radar', 'ld2410'];
-const { discoverLd2410Bundle, discoverLd2410Devices, buildRegistryMaps } = require('./ld2410');
+const { discoverLd2410Bundle, discoverLd2410Devices, buildRegistryMaps, pickPrimarySensor, isPrimaryRadarTarget } = require('./ld2410');
 
 function normalizeUrl(url) {
   return url.replace(/\/+$/, '');
@@ -110,17 +110,17 @@ async function fetchPresenceSensors(store) {
   const sensors = new Map();
 
   for (const device of devices.values()) {
-    for (const entity of device.sensors) {
-      if (!isEsphomeEntity(entity.entity_id, registryMaps, registryAvailable)) continue;
-      sensors.set(entity.entity_id, mapPresenceSensor(entity, registryAvailable ? 'esphome' : 'ld2410'));
-    }
+    const primary = pickPrimarySensor(device.sensors);
+    if (!primary) continue;
+    if (!isEsphomeEntity(primary.entity_id, registryMaps, registryAvailable)) continue;
+    sensors.set(primary.entity_id, mapPresenceSensor(primary, registryAvailable ? 'esphome' : 'ld2410'));
   }
 
   // Fallback: scan states if engineering-switch discovery found nothing
   if (sensors.size === 0) {
     for (const entity of states) {
       if (!entity.entity_id.startsWith('binary_sensor.')) continue;
-      if (!matchesPresenceFilter(entity)) continue;
+      if (!isPrimaryRadarTarget(entity)) continue;
       if (isZoneTemplateSensor(entity)) continue;
       if (!isEsphomeEntity(entity.entity_id, registryMaps, registryAvailable)) continue;
 
