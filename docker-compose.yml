@@ -1,0 +1,13 @@
+services:
+  ld2410-calibrator:
+    build: .
+    image: ghcr.io/umarjamilpc/ld2410-companion-app:latest
+    container_name: ld2410-calibrator
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

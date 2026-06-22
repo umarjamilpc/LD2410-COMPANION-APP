@@ -1,0 +1,17 @@
+{
+  "name": "ld2410-companion-app",
+  "version": "1.0.0",
+  "description": "LD2410B Human Presence Calibration Tool for Home Assistant",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd client && npm install",
+    "build": "cd client && npm run build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.1"
+  }
+}
